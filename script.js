@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 let count = 0;
 const maxRequirements = 20;
 
@@ -231,7 +231,6 @@ document.addEventListener("DOMContentLoaded", () => {
   if (addShortBtn) addShortBtn.addEventListener("click", () => addShortlistItem());
   
 });
-=======
 
 async function getResults() {
 const url = document.getElementById("urlInput").value;
@@ -255,4 +254,4 @@ try {
         output.textContent = "Failed to connect to backend.";
       }
     }
->>>>>>> a209a69 (Initial commit)
+

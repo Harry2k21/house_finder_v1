@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import json
 from datetime import date
 from flask import Flask, request, jsonify
@@ -57,7 +56,7 @@ def history():
 
 if __name__ == "__main__":
     app.run(debug=True)
-=======
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
@@ -85,4 +84,3 @@ def scrape():
 
 if __name__ == "__main__":
     app.run(debug=True)
->>>>>>> a209a69 (Initial commit)
