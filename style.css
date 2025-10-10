@@ -129,8 +129,6 @@ button[onclick="askExpert()"]:hover {
     white-space: pre-wrap;
 }
 
-
-
 #answer {
     margin-top: 10px;
     background: #f2f6ff;
