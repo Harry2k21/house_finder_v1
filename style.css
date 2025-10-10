@@ -79,3 +79,65 @@ body {
 input, button { 
     padding: 8px; margin: 5px 0; 
 }
+
+/* --- Ask Expert Section --- */
+#askExpertContainer {
+    margin-top: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#question {
+    flex: 1;
+    padding: 10px 14px;
+    font-size: 15px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    transition: 0.2s ease;
+    min-width: 400px; /* makes it longer */
+}
+
+#question:focus {
+    outline: none;
+    border-color: #0077ff;
+    box-shadow: 0 0 4px rgba(0, 119, 255, 0.4);
+}
+
+button[onclick="askExpert()"] {
+    background: #0077ff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 10px 18px;
+    font-size: 14px;
+    transition: 0.2s ease;
+}
+
+button[onclick="askExpert()"]:hover {
+    background: #005fcb;
+}
+
+#answer {
+    margin-top: 10px;
+    background: #f2f6ff;
+    border: 1px solid #dce3f5;
+    border-radius: 6px;
+    padding: 10px;
+    color: #222;
+    white-space: pre-wrap;
+}
+
+
+
+#answer {
+    margin-top: 10px;
+    background: #f2f6ff;
+    border-radius: 6px;
+    padding: 10px;
+    min-height: 40px;
+    color: #222;
+    border: 1px solid #dce3f5;
+    white-space: pre-wrap;
+}
