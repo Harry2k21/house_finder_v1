@@ -1,6 +1,9 @@
 body { 
     font-family: Arial, sans-serif; 
     padding: 20px; 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 input, button { 
@@ -9,18 +12,22 @@ input, button {
 }
 
 /* Checklist Section */
-#requirements {
+#requirements, #shortlist{
     margin-top: 20px;
+    width: 40%;
+    
 }
 
 .requirement{
     display: flex;
+    
     align-items: center;
     margin: 5px 0;
 }
 
 .requirement input[type="text"] {
     flex: 1;
+ 
     margin: 0 10px;
     padding: 5px;
 }
@@ -30,13 +37,6 @@ input, button {
     cursor: pointer;
 }
 
-#addBtn {
-    background: #0077ff;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-}
 
 #addBtn:disabled {
     background: gray;
@@ -44,9 +44,7 @@ input, button {
 }
 
 /* Shortlist Section */
-#shortlist {
-    margin-top: 20px;
-}
+ 
 
 .short-item {
     display: flex;
@@ -65,16 +63,6 @@ input, button {
     cursor: pointer;
 }
 
-
-
-#addShortBtn:disabled {
-    background: gray;
-    cursor: not-allowed;
-}
-
-body { 
-    font-family: Arial, sans-serif; padding: 20px; 
-}
 
 input, button { 
     padding: 8px; margin: 5px 0; 
@@ -104,8 +92,8 @@ input, button {
     box-shadow: 0 0 4px rgba(0, 119, 255, 0.4);
 }
 
-button[onclick="askExpert()"] {
-    background: #0077ff;
+button[onclick="askExpert()"], #addBtn, #addShortBtn, button {
+    background: #134074;
     color: white;
     border: none;
     border-radius: 6px;
@@ -115,8 +103,8 @@ button[onclick="askExpert()"] {
     transition: 0.2s ease;
 }
 
-button[onclick="askExpert()"]:hover {
-    background: #005fcb;
+button[onclick="askExpert()"]:hover , #addBtn:hover, #addShortBtn:hover, button:hover {
+    background: #6389b5;
 }
 
 #answer {
