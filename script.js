@@ -221,6 +221,16 @@ async function askExpert() {
   const data = await res.json();
   document.getElementById("answer").textContent = data.answer || data.error;
 }
+// fetch("/ask_expert", {
+//   method: "POST",
+//   headers: { "Content-Type": "application/json" },
+//   body: JSON.stringify({ question: userQuestion }),
+// })
+//   .then(res => res.json())
+//   .then(data => {
+//     document.getElementById("expertAnswer").textContent = data.answer;
+//   })
+//   .catch(err => console.error("Error:", err));
 
 
 
