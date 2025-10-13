@@ -42,6 +42,14 @@ async function getResults() {
   }
 }
 
+// Light and Dark Mode Function////
+
+ function toggleTheme() {
+      document.body.classList.toggle("light-mode");
+      const isLight = document.body.classList.contains("light-mode");
+      document.getElementById("themeToggle").textContent = isLight ? "🌙 Dark Mode" : "☀️ Light Mode";
+    }
+
 async function loadHistory() {
   try {
     const response = await fetch("http://127.0.0.1:5000/history");
@@ -221,16 +229,6 @@ async function askExpert() {
   const data = await res.json();
   document.getElementById("answer").textContent = data.answer || data.error;
 }
-// fetch("/ask_expert", {
-//   method: "POST",
-//   headers: { "Content-Type": "application/json" },
-//   body: JSON.stringify({ question: userQuestion }),
-// })
-//   .then(res => res.json())
-//   .then(data => {
-//     document.getElementById("expertAnswer").textContent = data.answer;
-//   })
-//   .catch(err => console.error("Error:", err));
 
 
 
