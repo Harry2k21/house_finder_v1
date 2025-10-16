@@ -47,7 +47,7 @@ async function getResults() {
  function toggleTheme() {
       document.body.classList.toggle("light-mode");
       const isLight = document.body.classList.contains("light-mode");
-      document.getElementById("themeToggle").textContent = isLight ? "🌙 Dark Mode" : "☀️ Light Mode";
+      document.getElementById("themeToggle").textContent = isLight ? "Dark Mode" : "Light Mode";
     }
 
 async function loadHistory() {

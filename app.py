@@ -6,9 +6,28 @@ import requests
 from bs4 import BeautifulSoup
 import os
 from flask import send_from_directory
+from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
+
+# Configure SQLite database
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///data.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
+
+class History(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.String(20), nullable=False)
+    results = db.Column(db.String(100), nullable=False)
+
+@app.route("/debug_data")
+def debug_data():
+    all_data = History.query.all()
+    return jsonify([{"date": h.date, "results": h.results} for h in all_data])
 
 HISTORY_FILE = "results_history.json"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -44,21 +63,25 @@ def scrape():
     result_count = soup.find("div", class_="ResultsCount_resultsCount__Kqeah")
 
     if result_count:
-        count_text = result_count.text.strip()
-        today = str(date.today())
+          count_text = result_count.text.strip()
+    today = str(date.today())
 
-        history = load_history()
-        existing = next((entry for entry in history if entry["date"] == today), None)
+    # --- Save to database instead of JSON ---
+    existing = History.query.filter_by(date=today).first()
 
-        if existing:
-            existing["results"] = count_text
-        else:
-            history.append({"date": today, "results": count_text})
-
-        save_history(history)
-        return jsonify({"results": count_text, "history": history})
+    if existing:
+        existing.results = count_text
     else:
-        return jsonify({"error": "Could not find results count"}), 500
+        new_entry = History(date=today, results=count_text)
+        db.session.add(new_entry)
+
+    db.session.commit()
+
+    # Optional: return all history from the database
+    all_data = History.query.all()
+    history_data = [{"date": h.date, "results": h.results} for h in all_data]
+
+    return jsonify({"results": count_text, "history": history_data})
 
 @app.route("/history", methods=["GET"])
 def history():
@@ -116,6 +139,8 @@ def ask_expert():
 
     
 if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)
 
 
