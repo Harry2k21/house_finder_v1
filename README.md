@@ -10,3 +10,5 @@ Create UI, Create main search functionality, Create main filter setting, Make Im
 ## Stage 3 - Login Page, Database for Users
 
 ## Stage 4 - Make a chatbot that can answer questions about buying a house
+
+![alt text](image.png)
