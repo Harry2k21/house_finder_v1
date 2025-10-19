@@ -2,41 +2,98 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rightmove Scraper</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Auth Forms -->
+  <div id="authContainer" class="container">
+    <div id="message"></div>
+
+    <!-- Login Form -->
+    <div id="loginForm">
+      <h1>Login</h1>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="loginUsername" placeholder="Enter your username">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="loginPassword" placeholder="Enter your password">
+      </div>
+      <button onclick="handleLogin()">Login</button>
+      <div class="toggle-form">
+        Don't have an account? <a onclick="toggleForms()">Register</a>
+      </div>
+    </div>
+
+    <!-- Register Form (Hidden by default) -->
+    <div id="registerForm" class="hidden">
+      <h1>Register</h1>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="registerUsername" placeholder="Choose a username">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="registerEmail" placeholder="Enter your email">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="registerPassword" placeholder="Create a password (min 6 chars)">
+      </div>
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input type="password" id="confirmPassword" placeholder="Confirm your password">
+      </div>
+      <button onclick="handleRegister()">Register</button>
+      <div class="toggle-form">
+        Already have an account? <a onclick="toggleForms()">Login</a>
+      </div>
+    </div>
+  </div>
    <button id="themeToggle" onclick="toggleTheme()">Light Mode</button>
 
-  <h1>Rightmove Results Scraper</h1>
+  <!-- Main App (Hidden by default) -->
+  <div id="app" style="display: none;">
+    <div class="header">
+      <h1>Rightmove Results Scraper</h1>
+      <div class="header-right">
+        <span id="userDisplay"></span>
+        <button onclick="handleLogout()" class="logout-btn">Logout</button>
+      </div>
+    </div>
+    
+    <section>
+      <input id="urlInput" type="url" placeholder="Paste Rightmove search URL here">
+      <button onclick="getResults()">Get Results</button>
+      <div id="output"></div>
+      <div id="history"></div>
+    </section>
 
-  <input id="urlInput" type="text" placeholder="Paste Rightmove search URL here" size="80">
-  <button onclick="getResults()">Get Results</button>
+    <section>
+      <h2>My Requirements</h2>
+      <div id="list"></div>
+      <button id="addBtn" onclick="addRequirement()">Add a Requirement</button>
+    </section>
 
+    <section>
+      <h2>Shortlist</h2>
+      <div id="shortlist"></div>
+      <button id="addShortBtn" onclick="addShortlistItem()">Add to Shortlist</button>
+    </section>
 
-
-<div id="output"></div>    <!-- current result / messages -->
-<div id="history"></div>   <!-- results history (separate) -->
-
-
-   <!-- Requirements Checklist -->
-  <div id="requirements">
-    <h2>My Requirements</h2>
-    <div id="list"></div>
-    <button id="addBtn">Add a Requirement</button>
+    <section>
+      <h2>Ask an Expert</h2>
+      <div id="askExpertContainer">
+        <input id="question" placeholder="Ask your question...">
+        <button onclick="askExpert()">Ask Expert</button>
+      </div>
+      <p id="answer"></p>
+    </section>
   </div>
 
-  <h2>Shortlist</h2>
-<div id="shortlist"></div>
-<button id="addShortBtn">Add to Shortlist</button>
-
-<div id="askExpertContainer">
-  <input id="question" placeholder="Ask your question...">
-  <button onclick="askExpert()">Ask Expert</button>
-</div>
-<p id="answer"></p>
-
+  <script src="script.js"></script>
 </body>
-<script src="script.js"></script>
 </html>
-
