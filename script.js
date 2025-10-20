@@ -1,6 +1,239 @@
-
 let count = 0;
 const maxRequirements = 20;
+
+// ============================================
+// GLOBAL VARIABLES
+// ============================================
+
+let authToken = null;
+let currentUsername = null;
+const API_URL = 'http://127.0.0.1:5000';
+
+// ============================================
+// CHECK AUTHENTICATION ON PAGE LOAD
+// ============================================
+
+function checkAuth() {
+  // Try to get stored token from localStorage
+  const storedToken = localStorage.getItem('authToken');
+  const storedUsername = localStorage.getItem('currentUsername');
+
+  if (storedToken && storedUsername) {
+    // Verify token is still valid by calling a protected route
+    verifyTokenWithBackend(storedToken);
+  } else {
+    // Show login form, hide app
+    showLoginScreen();
+  }
+}
+
+async function verifyTokenWithBackend(token) {
+  try {
+    const response = await fetch(`${API_URL}/verify_token`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (response.ok) {
+      // Token is valid, show app
+      authToken = token;
+      currentUsername = localStorage.getItem('currentUsername');
+      showAppScreen();
+    } else {
+      // Token expired or invalid
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('currentUsername');
+      showLoginScreen();
+    }
+  } catch (err) {
+    console.error('Token verification failed:', err);
+    showLoginScreen();
+  }
+}
+
+function showLoginScreen() {
+  document.getElementById('authContainer').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+function showAppScreen() {
+  document.getElementById('authContainer').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('userDisplay').textContent = `Welcome, ${currentUsername}!`;
+}
+
+// ============================================
+// AUTHENTICATION FUNCTIONS
+// ============================================
+function handleLogout() {
+  authToken = null;
+  currentUsername = null;
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('currentUsername');
+  clearAuthInputs();
+  
+  // Hide the message box
+  const msg = document.getElementById('message');
+  msg.textContent = '';
+  msg.style.display = 'none';
+  msg.className = 'message';
+  
+  document.getElementById('loginForm').classList.remove('hidden');
+  document.getElementById('registerForm').classList.add('hidden');
+  showLoginScreen();
+}
+
+function toggleForms() {
+  document.getElementById('loginForm').classList.toggle('hidden');
+  document.getElementById('registerForm').classList.toggle('hidden');
+  document.getElementById('message').textContent = '';
+  clearAuthInputs();
+}
+
+function clearAuthInputs() {
+  document.getElementById('loginUsername').value = '';
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('registerUsername').value = '';
+  document.getElementById('registerEmail').value = '';
+  document.getElementById('registerPassword').value = '';
+  document.getElementById('confirmPassword').value = '';
+}
+
+function showMessage(text, isError = false) {
+  const msg = document.getElementById('message');
+  msg.textContent = text;
+  msg.className = `message ${isError ? 'error' : 'success'}`;
+  setTimeout(() => {
+    msg.textContent = '';
+    msg.className = 'message';
+  }, 4000);
+}
+
+async function handleLogin() {
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+
+  if (!username || !password) {
+    showMessage('Please enter username and password', true);
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      showMessage(data.error || 'Login failed', true);
+      return;
+    }
+
+    authToken = data.token;
+    currentUsername = data.username;
+    showMessage('Login successful!');
+    
+    // Store token securely
+    localStorage.setItem('authToken', authToken);
+    localStorage.setItem('currentUsername', currentUsername);
+    
+    setTimeout(() => {
+      showAppScreen();
+      clearAuthInputs();
+    }, 1000);
+  } catch (err) {
+    showMessage('Login failed: ' + err.message, true);
+    console.error('Login error:', err);
+  }
+}
+
+async function handleRegister() {
+  const username = document.getElementById('registerUsername').value.trim();
+  const email = document.getElementById('registerEmail').value.trim();
+  const password = document.getElementById('registerPassword').value;
+  const confirm = document.getElementById('confirmPassword').value;
+
+  if (!username || !email || !password || !confirm) {
+    showMessage('Please fill all fields', true);
+    return;
+  }
+
+  if (password.length < 6) {
+    showMessage('Password must be at least 6 characters', true);
+    return;
+  }
+
+  if (password !== confirm) {
+    showMessage('Passwords do not match', true);
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        username, 
+        email, 
+        password, 
+        confirm_password: confirm 
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      showMessage(data.error || 'Registration failed', true);
+      return;
+    }
+
+    showMessage('Registration successful! Please log in.');
+    setTimeout(toggleForms, 1500);
+    clearAuthInputs();
+  } catch (err) {
+    showMessage('Registration failed: ' + err.message, true);
+    console.error('Register error:', err);
+  }
+}
+
+function handleLogout() {
+  authToken = null;
+  currentUsername = null;
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('currentUsername');
+  clearAuthInputs();
+  document.getElementById('loginForm').classList.remove('hidden');
+  document.getElementById('registerForm').classList.add('hidden');
+  showLoginScreen();
+}
+
+// ============================================
+// PAGE INITIALIZATION
+// ============================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Check if user is already logged in
+  checkAuth();
+
+  // Add Enter key support for login
+  const loginPassword = document.getElementById('loginPassword');
+  if (loginPassword) {
+    loginPassword.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleLogin();
+    });
+  }
+
+  // Add Enter key support for register
+  const confirmPassword = document.getElementById('confirmPassword');
+  if (confirmPassword) {
+    confirmPassword.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleRegister();
+    });
+  }
+});
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, c =>

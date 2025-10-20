@@ -1,13 +1,20 @@
+from dotenv import load_dotenv
+load_dotenv()
+
+import secrets
+
+import os
 import json
-from datetime import date
-from flask import Flask, request, jsonify
+from datetime import date, datetime, timedelta
+
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+import jwt
 import requests
 from bs4 import BeautifulSoup
-import os
-from flask import send_from_directory
-from flask_sqlalchemy import SQLAlchemy
-from flask_cors import CORS
+
 
 app = Flask(__name__)
 CORS(app)
@@ -15,8 +22,118 @@ CORS(app)
 # Configure SQLite database
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///data.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 
 db = SQLAlchemy(app)
+
+# -------------------------
+# Database Models
+# -------------------------
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+# -------------------------
+# Authentication Routes
+# -------------------------
+
+@app.route("/register", methods=["POST"])
+def register():
+    data = request.get_json()
+    username = data.get("username")
+    email = data.get("email")
+    password = data.get("password")
+    confirm_password = data.get("confirm_password")
+
+    if not username or not email or not password:
+        return jsonify({"error": "All fields are required"}), 400
+
+    if password != confirm_password:
+        return jsonify({"error": "Passwords do not match"}), 400
+
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    if User.query.filter_by(username=username).first():
+        return jsonify({"error": "Username already exists"}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "Email already exists"}), 400
+
+    try:
+        new_user = User(username=username, email=email)
+        new_user.set_password(password)
+        db.session.add(new_user)
+        db.session.commit()
+        return jsonify({"message": "Registration successful! Please log in."}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+
+    if not username or not password:
+        return jsonify({"error": "Username and password are required"}), 400
+
+    user = User.query.filter_by(username=username).first()
+
+    if not user or not user.check_password(password):
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    try:
+        token = jwt.encode(
+            {
+                "user_id": user.id,
+                "username": user.username,
+                "exp": datetime.utcnow() + timedelta(hours=24)
+            },
+            app.config["SECRET_KEY"],
+            algorithm="HS256"
+        )
+        return jsonify({
+            "message": "Login successful",
+            "token": token,
+            "username": user.username
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def verify_token(token):
+    try:
+        data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+        return data
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+@app.route("/verify_token", methods=["GET"])
+def verify_token_route():
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    
+    if not token:
+        return jsonify({"error": "No token provided"}), 401
+    
+    user_data = verify_token(token)
+    
+    if not user_data:
+        return jsonify({"error": "Invalid or expired token"}), 401
+    
+    return jsonify({"valid": True, "user_id": user_data.get("user_id"), "username": user_data.get("username")}), 200
 
 
 class History(db.Model):
