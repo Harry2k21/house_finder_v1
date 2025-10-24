@@ -7,3 +7,5 @@ test('Scrape endpoint pulls the result amount', async () => {
   expect(response.status).toBeLessThan(500);
   expect(response.data).toHaveProperty('results');
 });
+
+

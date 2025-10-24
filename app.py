@@ -1,12 +1,11 @@
 from dotenv import load_dotenv
 load_dotenv()
-
 import secrets
 
 import os
 import json
 from datetime import date, datetime, timedelta
-
+from groq import Groq
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
@@ -23,6 +22,7 @@ CORS(app)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///data.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
+
 
 db = SQLAlchemy(app)
 
@@ -209,51 +209,49 @@ def history():
 # 🧠  "Ask an Expert" Feature
 # -------------------------
 
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+
+
+if not GROQ_API_KEY:
+    raise ValueError("❌ GROQ_API_KEY not found in .env")
+
+# Initialize Groq client
+client = Groq(api_key=GROQ_API_KEY)
+
 @app.route("/ask_expert", methods=["POST"])
 def ask_expert():
-    data = request.get_json()
-    question = data.get("question")
-
-    if not question:
-        return jsonify({"error": "No question provided"}), 400
-
     try:
-        payload = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [
+        data = request.get_json()
+        question = data.get("question")
+
+        if not question:
+            return jsonify({"error": "No question provided"}), 400
+
+        print(f"📥 Question: {question}")
+
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-maverick-17b-128e-instruct",
+            messages=[
                 {
                     "role": "system",
                     "content": "You are a professional real estate advisor. Give clear, practical, and honest advice about house buying in the UK."
                 },
-                {"role": "user", "content": question},
+                {"role": "user", "content": question}
             ],
-        }
-
-        response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {GROQ_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=30,
+            temperature=0.7,
+            max_tokens=1024,
         )
 
-        if response.status_code != 200:
-            return jsonify({
-                "error": "Groq API request failed",
-                "status": response.status_code,
-                "details": response.text
-            }), 500
-
-        data = response.json()
-        answer = data["choices"][0]["message"]["content"]
+        answer = response.choices[0].message.content
+        print(f"✅ Answer generated: {answer[:100]}...")
 
         return jsonify({"answer": answer})
 
     except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-
     
 if __name__ == "__main__":
     with app.app_context():

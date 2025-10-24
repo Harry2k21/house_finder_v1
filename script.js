@@ -283,6 +283,10 @@ async function getResults() {
       document.getElementById("themeToggle").textContent = isLight ? "Dark Mode" : "Light Mode";
     }
 
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { toggleTheme };
+}
+
 async function loadHistory() {
   try {
     const response = await fetch("http://127.0.0.1:5000/history");

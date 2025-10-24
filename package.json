@@ -3,22 +3,7 @@
   "version": "1.0.0",
   "description": "A web application designed to simplify the process of finding and tracking properties on Rightmove. Search properties, manage requirements, save shortlists, and get expert advice on house buying in the UK.",
   "main": "script.js",
-  "scripts": {
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "testMatch": ["**/__tests__/**/*.test.js", "**/?(*.)+(spec|test).js"],
-    "collectCoverageFrom": [
-      "script.js",
-      "!node_modules/**",
-      "!coverage/**"
-    ],
-    "coverageDirectory": "coverage",
-    "verbose": true
-  },
+  "scripts": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Harry2k21/house_finder_v1.git"
@@ -34,5 +19,8 @@
     "axios": "^1.12.2",
     "jest": "^30.2.0",
     "supertest": "^7.1.4"
+  },
+  "dependencies": {
+    "jest-environment-jsdom": "^30.2.0"
   }
 }
