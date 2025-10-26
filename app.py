@@ -18,30 +18,63 @@ from bs4 import BeautifulSoup
 app = Flask(__name__)
 CORS(app)
 
-# Configure SQLite database
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///data.db"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# Configure Turso SQLite database
+
+TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
+TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
 
 
-db = SQLAlchemy(app)
-
 # -------------------------
-# Database Models
+# Turso Database Helper
 # -------------------------
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+def execute_query(sql, params=None):
+    """Execute SQL query on Turso database via HTTP API"""
+    url = TURSO_DATABASE_URL.replace("libsql://", "https://")
+    
+    headers = {
+        "Authorization": f"Bearer {TURSO_AUTH_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "statements": [
+            {
+                "q": sql,
+                "params": params or []
+            }
+        ]
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    return response.json()
 
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+# -------------------------
+# Database Models (Manual)
+# -------------------------
 
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+def init_db():
+    """Initialize database tables"""
+    # Create Users table
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS user (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Create History table
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            results TEXT NOT NULL
+        )
+    """)
 
 # -------------------------
 # Authentication Routes
@@ -64,20 +97,24 @@ def register():
     if len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters"}), 400
 
-    if User.query.filter_by(username=username).first():
+    # Check if username exists
+    result = execute_query("SELECT * FROM user WHERE username = ?", [username])
+    if result[0]["results"]["rows"]:
         return jsonify({"error": "Username already exists"}), 400
 
-    if User.query.filter_by(email=email).first():
+    # Check if email exists
+    result = execute_query("SELECT * FROM user WHERE email = ?", [email])
+    if result[0]["results"]["rows"]:
         return jsonify({"error": "Email already exists"}), 400
 
     try:
-        new_user = User(username=username, email=email)
-        new_user.set_password(password)
-        db.session.add(new_user)
-        db.session.commit()
+        password_hash = generate_password_hash(password)
+        execute_query(
+            "INSERT INTO user (username, email, password_hash) VALUES (?, ?, ?)",
+            [username, email, password_hash]
+        )
         return jsonify({"message": "Registration successful! Please log in."}), 201
     except Exception as e:
-        db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
 @app.route("/login", methods=["POST"])
@@ -89,16 +126,25 @@ def login():
     if not username or not password:
         return jsonify({"error": "Username and password are required"}), 400
 
-    user = User.query.filter_by(username=username).first()
+    result = execute_query("SELECT * FROM user WHERE username = ?", [username])
+    rows = result[0]["results"]["rows"]
+    
+    if not rows:
+        return jsonify({"error": "Invalid username or password"}), 401
+    
+    user = rows[0]
+    user_id = user[0]
+    stored_username = user[1]
+    password_hash = user[3]
 
-    if not user or not user.check_password(password):
+    if not check_password_hash(password_hash, password):
         return jsonify({"error": "Invalid username or password"}), 401
 
     try:
         token = jwt.encode(
             {
-                "user_id": user.id,
-                "username": user.username,
+                "user_id": user_id,
+                "username": stored_username,
                 "exp": datetime.utcnow() + timedelta(hours=24)
             },
             app.config["SECRET_KEY"],
@@ -107,7 +153,7 @@ def login():
         return jsonify({
             "message": "Login successful",
             "token": token,
-            "username": user.username
+            "username": stored_username
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -136,33 +182,17 @@ def verify_token_route():
     return jsonify({"valid": True, "user_id": user_data.get("user_id"), "username": user_data.get("username")}), 200
 
 
-class History(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.String(20), nullable=False)
-    results = db.Column(db.String(100), nullable=False)
-
 @app.route("/debug_data")
 def debug_data():
-    all_data = History.query.all()
-    return jsonify([{"date": h.date, "results": h.results} for h in all_data])
+    result = execute_query("SELECT * FROM history")
+    rows = result[0]["results"]["rows"]
+    return jsonify([{"date": row[1], "results": row[2]} for row in rows])
 
-HISTORY_FILE = "results_history.json"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 @app.route('/index')
 def serve_index():
     return send_from_directory('.', 'index.html')
-
-def load_history():
-    try:
-        with open(HISTORY_FILE, "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return []
-
-def save_history(history):
-    with open(HISTORY_FILE, "w") as f:
-        json.dump(history, f)
 
 # -------------------------
 # 🕷️ Web Scraper
@@ -180,29 +210,30 @@ def scrape():
     result_count = soup.find("div", class_="ResultsCount_resultsCount__Kqeah")
 
     if result_count:
-          count_text = result_count.text.strip()
+        count_text = result_count.text.strip()
     today = str(date.today())
 
-    # --- Save to database instead of JSON ---
-    existing = History.query.filter_by(date=today).first()
-
-    if existing:
-        existing.results = count_text
+    # Check if entry exists
+    result = execute_query("SELECT * FROM history WHERE date = ?", [today])
+    
+    if result[0]["results"]["rows"]:
+        execute_query("UPDATE history SET results = ? WHERE date = ?", [count_text, today])
     else:
-        new_entry = History(date=today, results=count_text)
-        db.session.add(new_entry)
+        execute_query("INSERT INTO history (date, results) VALUES (?, ?)", [today, count_text])
 
-    db.session.commit()
-
-    # Optional: return all history from the database
-    all_data = History.query.all()
-    history_data = [{"date": h.date, "results": h.results} for h in all_data]
+    # Get all history
+    result = execute_query("SELECT * FROM history")
+    rows = result[0]["results"]["rows"]
+    history_data = [{"date": row[1], "results": row[2]} for row in rows]
 
     return jsonify({"results": count_text, "history": history_data})
 
 @app.route("/history", methods=["GET"])
 def history():
-    return jsonify(load_history())
+    result = execute_query("SELECT * FROM history")
+    rows = result[0]["results"]["rows"]
+    return jsonify([{"date": row[1], "results": row[2]} for row in rows])
+
 
 
 # -------------------------
@@ -254,8 +285,7 @@ def ask_expert():
         return jsonify({"error": str(e)}), 500
     
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
+    init_db()  # Initialize tables
     app.run(debug=True)
 
 

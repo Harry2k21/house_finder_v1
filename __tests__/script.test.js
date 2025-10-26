@@ -11,7 +11,7 @@ global.localStorage = {
   setItem: jest.fn(),
 };
 
-// Define the function directly in the test or copy it here
+
 let count = 0;
 const maxRequirements = 20;
 
