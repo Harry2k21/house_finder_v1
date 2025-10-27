@@ -64,8 +64,8 @@ pip install -r requirements.txt
 
 3. Create a `.env` file in the project root
 ```
-SECRET_KEY=your-random-secret-key-here
-GROQ_API_KEY=your-groq-api-key-here
+SECRET_KEY=
+GROQ_API_KEY=
 ```
 
 4. Run the Flask server
