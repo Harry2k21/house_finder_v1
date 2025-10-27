@@ -1,5 +1,7 @@
 let count = 0;
 const maxRequirements = 20;
+let shortlistCount = 0;
+const maxShortlist = 20;
 
 // ============================================
 // GLOBAL VARIABLES
@@ -14,15 +16,12 @@ const API_URL = 'http://127.0.0.1:5000';
 // ============================================
 
 function checkAuth() {
-  // Try to get stored token from localStorage
   const storedToken = localStorage.getItem('authToken');
   const storedUsername = localStorage.getItem('currentUsername');
 
   if (storedToken && storedUsername) {
-    // Verify token is still valid by calling a protected route
     verifyTokenWithBackend(storedToken);
   } else {
-    // Show login form, hide app
     showLoginScreen();
   }
 }
@@ -35,12 +34,10 @@ async function verifyTokenWithBackend(token) {
     });
 
     if (response.ok) {
-      // Token is valid, show app
       authToken = token;
       currentUsername = localStorage.getItem('currentUsername');
       showAppScreen();
     } else {
-      // Token expired or invalid
       localStorage.removeItem('authToken');
       localStorage.removeItem('currentUsername');
       showLoginScreen();
@@ -60,11 +57,17 @@ function showAppScreen() {
   document.getElementById('authContainer').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('userDisplay').textContent = `Welcome, ${currentUsername}!`;
+  
+  // Load user-specific data after login
+  loadRequirements();
+  loadShortlist();
+  loadHistory();
 }
 
 // ============================================
 // AUTHENTICATION FUNCTIONS
 // ============================================
+
 function handleLogout() {
   authToken = null;
   currentUsername = null;
@@ -72,11 +75,12 @@ function handleLogout() {
   localStorage.removeItem('currentUsername');
   clearAuthInputs();
   
-  // Hide the message box
   const msg = document.getElementById('message');
-  msg.textContent = '';
-  msg.style.display = 'none';
-  msg.className = 'message';
+  if (msg) {
+    msg.textContent = '';
+    msg.style.display = 'none';
+    msg.className = 'message';
+  }
   
   document.getElementById('loginForm').classList.remove('hidden');
   document.getElementById('registerForm').classList.add('hidden');
@@ -136,7 +140,6 @@ async function handleLogin() {
     currentUsername = data.username;
     showMessage('Login successful!');
     
-    // Store token securely
     localStorage.setItem('authToken', authToken);
     localStorage.setItem('currentUsername', currentUsername);
     
@@ -199,41 +202,9 @@ async function handleRegister() {
   }
 }
 
-function handleLogout() {
-  authToken = null;
-  currentUsername = null;
-  localStorage.removeItem('authToken');
-  localStorage.removeItem('currentUsername');
-  clearAuthInputs();
-  document.getElementById('loginForm').classList.remove('hidden');
-  document.getElementById('registerForm').classList.add('hidden');
-  showLoginScreen();
-}
-
 // ============================================
-// PAGE INITIALIZATION
+// UTILITY FUNCTIONS
 // ============================================
-
-document.addEventListener('DOMContentLoaded', () => {
-  // Check if user is already logged in
-  checkAuth();
-
-  // Add Enter key support for login
-  const loginPassword = document.getElementById('loginPassword');
-  if (loginPassword) {
-    loginPassword.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') handleLogin();
-    });
-  }
-
-  // Add Enter key support for register
-  const confirmPassword = document.getElementById('confirmPassword');
-  if (confirmPassword) {
-    confirmPassword.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') handleRegister();
-    });
-  }
-});
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, c =>
@@ -241,16 +212,35 @@ function escapeHtml(str) {
   );
 }
 
+function toggleTheme() {
+  document.body.classList.toggle("light-mode");
+  const isLight = document.body.classList.contains("light-mode");
+  document.getElementById("themeToggle").textContent = isLight ? "Dark Mode" : "Light Mode";
+}
+
+// ============================================
+// SCRAPING & HISTORY
+// ============================================
+
 async function getResults() {
+  if (!authToken) {
+    document.getElementById("output").textContent = "Please log in first.";
+    return;
+  }
+
   const url = document.getElementById("urlInput").value;
   const output = document.getElementById("output");
+  
   if (!url) {
     output.textContent = "Please enter a Rightmove URL.";
     return;
   }
 
   try {
-    const response = await fetch(`http://127.0.0.1:5000/scrape?url=${encodeURIComponent(url)}`);
+    const response = await fetch(`${API_URL}/scrape?url=${encodeURIComponent(url)}`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    
     if (!response.ok) {
       const text = await response.text();
       output.textContent = `Backend error ${response.status}: ${text}`;
@@ -275,21 +265,14 @@ async function getResults() {
   }
 }
 
-// Light and Dark Mode Function////
-
- function toggleTheme() {
-      document.body.classList.toggle("light-mode");
-      const isLight = document.body.classList.contains("light-mode");
-      document.getElementById("themeToggle").textContent = isLight ? "Dark Mode" : "Light Mode";
-    }
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { toggleTheme };
-}
-
 async function loadHistory() {
+  if (!authToken) return;
+  
   try {
-    const response = await fetch("http://127.0.0.1:5000/history");
+    const response = await fetch(`${API_URL}/history`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    
     if (!response.ok) {
       console.error('History fetch failed', response.status);
       return;
@@ -324,10 +307,13 @@ function createHistoryEl() {
   return el;
 }
 
-/* ---------------------------
-   REQUIREMENTS SAVE / LOAD
----------------------------- */
-function saveRequirements() {
+// ============================================
+// REQUIREMENTS
+// ============================================
+
+async function saveRequirements() {
+  if (!authToken) return;
+  
   const list = document.getElementById("list");
   const reqs = [];
   list.querySelectorAll(".requirement").forEach(reqDiv => {
@@ -338,17 +324,45 @@ function saveRequirements() {
       text: textInput.value
     });
   });
-  localStorage.setItem("requirements", JSON.stringify(reqs));
+  
+  try {
+    await fetch(`${API_URL}/requirements`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ requirements: reqs })
+    });
+  } catch (err) {
+    console.error('Failed to save requirements:', err);
+  }
 }
 
-function loadRequirements() {
-  const saved = JSON.parse(localStorage.getItem("requirements") || "[]");
-  const list = document.getElementById("list");
-  list.innerHTML = "";
-  count = 0;
-  saved.forEach(req => {
-    addRequirement(req.text, req.checked);
-  });
+async function loadRequirements() {
+  if (!authToken) return;
+  
+  try {
+    const response = await fetch(`${API_URL}/requirements`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to load requirements');
+      return;
+    }
+    
+    const saved = await response.json();
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+    count = 0;
+    
+    (saved || []).forEach(req => {
+      addRequirement(req.text, req.checked);
+    });
+  } catch (err) {
+    console.error('Failed to load requirements:', err);
+  }
 }
 
 function addRequirement(text = "", checked = false) {
@@ -390,16 +404,16 @@ function addRequirement(text = "", checked = false) {
     document.getElementById("addBtn").disabled = true;
   }
 
-  saveRequirements(); // save on add
+  saveRequirements();
 }
 
-/* ---------------------------
-   SHORTLIST SAVE / LOAD
----------------------------- */
-let shortlistCount = 0;
-const maxShortlist = 20;
+// ============================================
+// SHORTLIST
+// ============================================
 
-function saveShortlist() {
+async function saveShortlist() {
+  if (!authToken) return;
+  
   const list = document.getElementById("shortlist");
   const items = [];
   list.querySelectorAll(".short-item").forEach(itemDiv => {
@@ -408,17 +422,45 @@ function saveShortlist() {
       text: textInput.value
     });
   });
-  localStorage.setItem("shortlist", JSON.stringify(items));
+  
+  try {
+    await fetch(`${API_URL}/shortlist`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ shortlist: items })
+    });
+  } catch (err) {
+    console.error('Failed to save shortlist:', err);
+  }
 }
 
-function loadShortlist() {
-  const saved = JSON.parse(localStorage.getItem("shortlist") || "[]");
-  const list = document.getElementById("shortlist");
-  list.innerHTML = "";
-  shortlistCount = 0;
-  saved.forEach(item => {
-    addShortlistItem(item.text);
-  });
+async function loadShortlist() {
+  if (!authToken) return;
+  
+  try {
+    const response = await fetch(`${API_URL}/shortlist`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to load shortlist');
+      return;
+    }
+    
+    const saved = await response.json();
+    const list = document.getElementById("shortlist");
+    list.innerHTML = "";
+    shortlistCount = 0;
+    
+    (saved || []).forEach(item => {
+      addShortlistItem(item.text);
+    });
+  } catch (err) {
+    console.error('Failed to load shortlist:', err);
+  }
 }
 
 function addShortlistItem(text = "") {
@@ -453,31 +495,58 @@ function addShortlistItem(text = "") {
     document.getElementById("addShortBtn").disabled = true;
   }
 
-  saveShortlist(); // save on add
+  saveShortlist();
 }
+
+// ============================================
+// ASK EXPERT
+// ============================================
 
 async function askExpert() {
   const question = document.getElementById("question").value;
-  const res = await fetch("http://127.0.0.1:5000/ask_expert", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question })
-  });
-  const data = await res.json();
-  document.getElementById("answer").textContent = data.answer || data.error;
+  
+  if (!question) {
+    document.getElementById("answer").textContent = "Please enter a question.";
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_URL}/ask_expert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question })
+    });
+    const data = await res.json();
+    document.getElementById("answer").textContent = data.answer || data.error;
+  } catch (err) {
+    document.getElementById("answer").textContent = "Failed to get answer: " + err.message;
+  }
 }
 
+// ============================================
+// PAGE INITIALIZATION
+// ============================================
 
-
-/* ---------------------------
-   PAGE LOAD
----------------------------- */
 document.addEventListener("DOMContentLoaded", () => {
-  loadHistory();
-  loadRequirements();
-  loadShortlist();
-   // load saved requirements
+  checkAuth();
 
+  // Login form Enter key support
+  const loginPassword = document.getElementById('loginPassword');
+  if (loginPassword) {
+    loginPassword.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleLogin();
+    });
+  }
+
+  // Register form Enter key support
+  const confirmPassword = document.getElementById('confirmPassword');
+  if (confirmPassword) {
+    confirmPassword.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleRegister();
+    });
+  }
+
+  // Event listeners for buttons
   const scrapeBtn = document.getElementById("scrapeBtn");
   if (scrapeBtn) scrapeBtn.addEventListener("click", getResults);
 
@@ -486,32 +555,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const addShortBtn = document.getElementById("addShortBtn");
   if (addShortBtn) addShortBtn.addEventListener("click", () => addShortlistItem());
-  
 });
 
-async function getResults() {
-const url = document.getElementById("urlInput").value;
-const output = document.getElementById("output");
-
-if (!url) {
-        output.textContent = "Please enter a Rightmove URL.";
-        return;
-      }
-
-try {
-        const response = await fetch(`http://127.0.0.1:5000/scrape?url=${encodeURIComponent(url)}`);
-        const data = await response.json();
-
-    if (data.results) {
-          output.textContent = `Number of results: ${data.results}`;
-        } else {
-          output.textContent = `Error: ${data.error}`;
-        }
-      } catch (err) {
-        output.textContent = "Failed to connect to backend.";
-      }
-    }
-
+// ============================================
+// EXPORTS (for testing)
+// ============================================
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { toggleTheme, addRequirement, addShortlistItem };

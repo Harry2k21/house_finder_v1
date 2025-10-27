@@ -67,15 +67,16 @@ def init_db():
         )
     """)
     
-    # Create History table
+    # Create History table (user-specific)
     execute_query("""
         CREATE TABLE IF NOT EXISTS history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
             date TEXT NOT NULL,
-            results TEXT NOT NULL
+            results TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
 # -------------------------
 # Authentication Routes
 # -------------------------
@@ -195,46 +196,99 @@ def serve_index():
     return send_from_directory('.', 'index.html')
 
 # -------------------------
-# 🕷️ Web Scraper
+# 🕷️ Web Scraper (User-Specific)
 # -------------------------
 @app.route("/scrape", methods=["GET"])
 def scrape():
+    # Get username from token
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    
+    if not token:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    user_data = verify_token(token)
+    
+    if not user_data:
+        return jsonify({"error": "Invalid or expired token"}), 401
+    
+    username = user_data.get("username")
+    
     url = request.args.get("url")
     if not url:
         return jsonify({"error": "No URL provided"}), 400
 
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(url, headers=headers)
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+        result_count = soup.find("div", class_="ResultsCount_resultsCount__Kqeah")
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    result_count = soup.find("div", class_="ResultsCount_resultsCount__Kqeah")
+        if result_count:
+            count_text = result_count.text.strip()
+        else:
+            count_text = "0"
+            
+        today = str(date.today())
 
-    if result_count:
-        count_text = result_count.text.strip()
-    today = str(date.today())
+        # Check if user already has an entry for today
+        result = execute_query(
+            "SELECT * FROM history WHERE username = ? AND date = ?", 
+            [username, today]
+        )
+        
+        if result[0]["results"]["rows"]:
+            # Update existing entry for this user today
+            execute_query(
+                "UPDATE history SET results = ? WHERE username = ? AND date = ?", 
+                [count_text, username, today]
+            )
+        else:
+            # Insert new entry for this user
+            execute_query(
+                "INSERT INTO history (username, date, results) VALUES (?, ?, ?)", 
+                [username, today, count_text]
+            )
 
-    # Check if entry exists
-    result = execute_query("SELECT * FROM history WHERE date = ?", [today])
-    
-    if result[0]["results"]["rows"]:
-        execute_query("UPDATE history SET results = ? WHERE date = ?", [count_text, today])
-    else:
-        execute_query("INSERT INTO history (date, results) VALUES (?, ?)", [today, count_text])
+        # Get this user's history only
+        result = execute_query(
+            "SELECT * FROM history WHERE username = ? ORDER BY date DESC", 
+            [username]
+        )
+        rows = result[0]["results"]["rows"]
+        history_data = [{"date": row[2], "results": row[3]} for row in rows]
 
-    # Get all history
-    result = execute_query("SELECT * FROM history")
-    rows = result[0]["results"]["rows"]
-    history_data = [{"date": row[1], "results": row[2]} for row in rows]
-
-    return jsonify({"results": count_text, "history": history_data})
+        return jsonify({"results": count_text, "history": history_data})
+        
+    except Exception as e:
+        print(f"Scrape error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/history", methods=["GET"])
 def history():
-    result = execute_query("SELECT * FROM history")
-    rows = result[0]["results"]["rows"]
-    return jsonify([{"date": row[1], "results": row[2]} for row in rows])
-
-
+    # Get username from token
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    
+    if not token:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    user_data = verify_token(token)
+    
+    if not user_data:
+        return jsonify({"error": "Invalid or expired token"}), 401
+    
+    username = user_data.get("username")
+    
+    try:
+        # Get only this user's history
+        result = execute_query(
+            "SELECT * FROM history WHERE username = ? ORDER BY date DESC", 
+            [username]
+        )
+        rows = result[0]["results"]["rows"]
+        return jsonify([{"date": row[2], "results": row[3]} for row in rows])
+    except Exception as e:
+        print(f"History error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # -------------------------
 # 🧠  "Ask an Expert" Feature
@@ -283,6 +337,160 @@ def ask_expert():
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+    
+
+# -------------------------
+# 📋 Requirements & Shortlist Routes
+# -------------------------
+
+def get_user_from_token():
+    """Extract username from JWT token"""
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    
+    if not token:
+        return None
+    
+    user_data = verify_token(token)
+    
+    if not user_data:
+        return None
+    
+    return user_data.get("username")
+
+@app.route('/requirements', methods=['GET'])
+def get_requirements():
+    username = get_user_from_token()
+    
+    if not username:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        result = execute_query(
+            "SELECT requirements FROM user_requirements WHERE username = ? ORDER BY updated_at DESC LIMIT 1",
+            [username]
+        )
+        
+        rows = result[0]["results"]["rows"]
+        
+        if rows:
+            requirements = json.loads(rows[0][0])
+            return jsonify(requirements), 200
+        else:
+            return jsonify([]), 200
+            
+    except Exception as e:
+        print(f"Error fetching requirements: {e}")
+        return jsonify({'error': 'Failed to fetch requirements'}), 500
+
+@app.route('/requirements', methods=['POST'])
+def save_requirements():
+    username = get_user_from_token()
+    
+    if not username:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json()
+    
+    if 'requirements' not in data:
+        return jsonify({'error': 'Missing requirements data'}), 400
+    
+    try:
+        requirements_json = json.dumps(data['requirements'])
+        
+        # Check if user already has requirements
+        result = execute_query(
+            "SELECT id FROM user_requirements WHERE username = ?",
+            [username]
+        )
+        
+        existing = result[0]["results"]["rows"]
+        
+        if existing:
+            # Update existing
+            execute_query(
+                "UPDATE user_requirements SET requirements = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
+                [requirements_json, username]
+            )
+        else:
+            # Insert new
+            execute_query(
+                "INSERT INTO user_requirements (username, requirements) VALUES (?, ?)",
+                [username, requirements_json]
+            )
+        
+        return jsonify({'success': True}), 200
+        
+    except Exception as e:
+        print(f"Error saving requirements: {e}")
+        return jsonify({'error': 'Failed to save requirements'}), 500
+
+@app.route('/shortlist', methods=['GET'])
+def get_shortlist():
+    username = get_user_from_token()
+    
+    if not username:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        result = execute_query(
+            "SELECT shortlist FROM user_shortlist WHERE username = ? ORDER BY updated_at DESC LIMIT 1",
+            [username]
+        )
+        
+        rows = result[0]["results"]["rows"]
+        
+        if rows:
+            shortlist = json.loads(rows[0][0])
+            return jsonify(shortlist), 200
+        else:
+            return jsonify([]), 200
+            
+    except Exception as e:
+        print(f"Error fetching shortlist: {e}")
+        return jsonify({'error': 'Failed to fetch shortlist'}), 500
+
+@app.route('/shortlist', methods=['POST'])
+def save_shortlist():
+    username = get_user_from_token()
+    
+    if not username:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json()
+    
+    if 'shortlist' not in data:
+        return jsonify({'error': 'Missing shortlist data'}), 400
+    
+    try:
+        shortlist_json = json.dumps(data['shortlist'])
+        
+        # Check if user already has shortlist
+        result = execute_query(
+            "SELECT id FROM user_shortlist WHERE username = ?",
+            [username]
+        )
+        
+        existing = result[0]["results"]["rows"]
+        
+        if existing:
+            # Update existing
+            execute_query(
+                "UPDATE user_shortlist SET shortlist = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
+                [shortlist_json, username]
+            )
+        else:
+            # Insert new
+            execute_query(
+                "INSERT INTO user_shortlist (username, shortlist) VALUES (?, ?)",
+                [username, shortlist_json]
+            )
+        
+        return jsonify({'success': True}), 200
+        
+    except Exception as e:
+        print(f"Error saving shortlist: {e}")
+        return jsonify({'error': 'Failed to save shortlist'}), 500
+
     
 if __name__ == "__main__":
     init_db()  # Initialize tables
