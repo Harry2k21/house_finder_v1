@@ -11,6 +11,11 @@ let authToken = null;
 let currentUsername = null;
 const API_URL = 'http://127.0.0.1:5000';
 
+// Map variables
+let map = null;
+let markers = [];
+let mapInitialized = false;
+
 // ============================================
 // CHECK AUTHENTICATION ON PAGE LOAD
 // ============================================
@@ -107,9 +112,11 @@ function showMessage(text, isError = false) {
   const msg = document.getElementById('message');
   msg.textContent = text;
   msg.className = `message ${isError ? 'error' : 'success'}`;
+  msg.style.display = 'block';
   setTimeout(() => {
     msg.textContent = '';
     msg.className = 'message';
+    msg.style.display = 'none';
   }, 4000);
 }
 
@@ -417,9 +424,13 @@ async function saveShortlist() {
   const list = document.getElementById("shortlist");
   const items = [];
   list.querySelectorAll(".short-item").forEach(itemDiv => {
-    const textInput = itemDiv.querySelector("input[type=text]");
+    const inputs = itemDiv.querySelectorAll("input[type=text]");
     items.push({
-      text: textInput.value
+      address: inputs[0].value,
+      price: inputs[1].value,
+      bedrooms: inputs[2].value,
+      type: inputs[3].value,
+      link: inputs[4].value
     });
   });
   
@@ -432,6 +443,11 @@ async function saveShortlist() {
       },
       body: JSON.stringify({ shortlist: items })
     });
+    
+    // Refresh map if it's visible
+    if (mapInitialized && document.getElementById('mapContainer').style.display !== 'none') {
+      await loadMap();
+    }
   } catch (err) {
     console.error('Failed to save shortlist:', err);
   }
@@ -456,14 +472,14 @@ async function loadShortlist() {
     shortlistCount = 0;
     
     (saved || []).forEach(item => {
-      addShortlistItem(item.text);
+      addShortlistItem(item.address, item.price, item.bedrooms, item.type, item.link);
     });
   } catch (err) {
     console.error('Failed to load shortlist:', err);
   }
 }
 
-function addShortlistItem(text = "") {
+function addShortlistItem(address = "", price = "", bedrooms = "", type = "", link = "") {
   if (shortlistCount >= maxShortlist) return;
   shortlistCount++;
 
@@ -471,15 +487,39 @@ function addShortlistItem(text = "") {
 
   const itemDiv = document.createElement("div");
   itemDiv.className = "short-item";
+  itemDiv.style.display = "flex";
+  itemDiv.style.flexDirection = "column";
+  itemDiv.style.gap = "8px";
 
-  const textInput = document.createElement("input");
-  textInput.type = "text";
-  textInput.placeholder = "Enter shortlisted item...";
-  textInput.value = text;
-  textInput.addEventListener("input", saveShortlist);
+  const inputContainer = document.createElement("div");
+  inputContainer.style.display = "flex";
+  inputContainer.style.gap = "8px";
+  inputContainer.style.flexWrap = "wrap";
+
+  const createInput = (placeholder, value) => {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = placeholder;
+    input.value = value;
+    input.style.flex = "1";
+    input.style.minWidth = "150px";
+    input.addEventListener("input", saveShortlist);
+    return input;
+  };
+
+  const addressInput = createInput("Address", address);
+  const priceInput = createInput("Price", price);
+  const bedroomsInput = createInput("Bedrooms", bedrooms);
+  const typeInput = createInput("Type", type);
+  const linkInput = createInput("Rightmove Link", link);
+
+  addressInput.style.flex = "2";
+  linkInput.style.flex = "2";
 
   const delBtn = document.createElement("button");
   delBtn.textContent = "❌";
+  delBtn.style.width = "auto";
+  delBtn.style.padding = "8px 14px";
   delBtn.onclick = () => {
     list.removeChild(itemDiv);
     shortlistCount--;
@@ -487,8 +527,15 @@ function addShortlistItem(text = "") {
     saveShortlist();
   };
 
-  itemDiv.appendChild(textInput);
-  itemDiv.appendChild(delBtn);
+  inputContainer.appendChild(addressInput);
+  inputContainer.appendChild(priceInput);
+  inputContainer.appendChild(bedroomsInput);
+  inputContainer.appendChild(typeInput);
+  inputContainer.appendChild(delBtn);
+
+  itemDiv.appendChild(inputContainer);
+  itemDiv.appendChild(linkInput);
+
   list.appendChild(itemDiv);
 
   if (shortlistCount >= maxShortlist) {
@@ -496,6 +543,171 @@ function addShortlistItem(text = "") {
   }
 
   saveShortlist();
+}
+
+// ============================================
+// MAP FUNCTIONALITY
+// ============================================
+
+function toggleMapView() {
+  const mapContainer = document.getElementById('mapContainer');
+  const viewMapBtn = document.getElementById('viewMapBtn');
+  const loadingMessage = document.getElementById('mapLoadingMessage');
+  
+  if (mapContainer.style.display === 'none') {
+    mapContainer.style.display = 'block';
+    loadingMessage.style.display = 'none';
+    viewMapBtn.textContent = 'Hide Map';
+    if (!mapInitialized) {
+      initializeMap();
+    }
+    loadMap();
+  } else {
+    mapContainer.style.display = 'none';
+    loadingMessage.style.display = 'block';
+    viewMapBtn.textContent = 'View Map';
+  }
+}
+
+function initializeMap() {
+  if (!map) {
+    map = L.map('map').setView([51.5074, -0.1278], 10);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map);
+    
+    mapInitialized = true;
+  }
+}
+
+async function loadMap() {
+  if (!authToken || !map) return;
+  
+  updateMapStatus('Loading properties...', true);
+  
+  try {
+    const response = await fetch(`${API_URL}/shortlist`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    
+    if (!response.ok) {
+      updateMapStatus('Failed to load properties', false);
+      return;
+    }
+    
+    const shortlist = await response.json();
+    
+    if (shortlist.length === 0) {
+      updateMapStatus('No properties in shortlist', false);
+      return;
+    }
+    
+    // Clear existing markers
+    markers.forEach(marker => marker.remove());
+    markers = [];
+    
+    const bounds = [];
+    let geocodedCount = 0;
+    
+    updateMapStatus(`Geocoding ${shortlist.length} properties...`, true);
+    
+    for (let i = 0; i < shortlist.length; i++) {
+      const property = shortlist[i];
+      
+      if (!property.address) continue;
+      
+      // Check if we already have coordinates
+      if (!property.coordinates) {
+        const coords = await geocodeAddress(property.address);
+        if (coords) {
+          property.coordinates = coords;
+          geocodedCount++;
+        }
+      }
+      
+      if (property.coordinates) {
+        const marker = L.marker([property.coordinates.lat, property.coordinates.lon])
+          .addTo(map)
+          .bindPopup(`
+            <div>
+              <h3>${property.price || 'Price not set'}</h3>
+              <p><strong>${property.address}</strong></p>
+              <p>${property.bedrooms || '?'} bed • ${property.type || 'Type not set'}</p>
+              ${property.link ? `<a href="${property.link}" target="_blank">View Listing →</a>` : ''}
+            </div>
+          `);
+        
+        markers.push(marker);
+        bounds.push([property.coordinates.lat, property.coordinates.lon]);
+      }
+    }
+    
+    // Fit map to show all markers
+    if (bounds.length > 0) {
+      map.fitBounds(bounds, { padding: [50, 50] });
+      updateMapStatus(`Showing ${bounds.length} properties on map`, false);
+    } else {
+      updateMapStatus('No properties could be geocoded', false);
+    }
+    
+    // Save updated shortlist with coordinates
+    if (geocodedCount > 0) {
+      await fetch(`${API_URL}/shortlist`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ shortlist })
+      });
+    }
+    
+  } catch (err) {
+    console.error('Map loading error:', err);
+    updateMapStatus('Error loading map', false);
+  }
+}
+
+async function geocodeAddress(address) {
+  try {
+    const response = await fetch(`${API_URL}/geocode`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ address })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      // Add small delay to respect Nominatim rate limits
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return { lat: data.lat, lon: data.lon };
+    }
+    return null;
+  } catch (err) {
+    console.error('Geocoding error:', err);
+    return null;
+  }
+}
+
+function updateMapStatus(text, isLoading) {
+  const statusEl = document.getElementById('mapStatusText');
+  const statusContainer = document.getElementById('mapStatus');
+  
+  if (isLoading) {
+    statusEl.innerHTML = `<div class="spinner"></div> ${text}`;
+    statusContainer.style.display = 'flex';
+  } else {
+    statusEl.textContent = text;
+    statusContainer.style.display = 'block';
+    setTimeout(() => {
+      statusContainer.style.display = 'none';
+    }, 3000);
+  }
 }
 
 // ============================================

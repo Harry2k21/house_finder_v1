@@ -637,3 +637,62 @@ section h2 {
         font-size: 12px;
     }
 }
+
+/* Map-specific styles */
+    .leaflet-popup-content-wrapper {
+      background: var(--card-bg);
+      color: var(--text-color);
+      border-radius: 8px;
+      padding: 8px;
+    }
+    
+    .leaflet-popup-content {
+      margin: 8px;
+      line-height: 1.4;
+    }
+    
+    .leaflet-popup-content h3 {
+      color: var(--button-bg);
+      margin: 0 0 8px 0;
+      font-size: 16px;
+    }
+    
+    .leaflet-popup-content p {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+    }
+    
+    .leaflet-popup-content a {
+      color: var(--button-bg);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    
+    .leaflet-popup-content a:hover {
+      color: var(--button-hover);
+    }
+    
+    .leaflet-popup-tip {
+      background: var(--card-bg);
+    }
+    
+    #mapStatus {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    
+    .spinner {
+      border: 3px solid rgba(37, 99, 235, 0.2);
+      border-top: 3px solid var(--button-bg);
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }

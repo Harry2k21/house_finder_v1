@@ -77,6 +77,29 @@ def init_db():
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    
+    # Create user requirements table
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS user_requirements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            requirements TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Create user shortlist table
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS user_shortlist (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            shortlist TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    print("✅ Database tables initialized")
+
 # -------------------------
 # Authentication Routes
 # -------------------------
@@ -491,9 +514,54 @@ def save_shortlist():
         print(f"Error saving shortlist: {e}")
         return jsonify({'error': 'Failed to save shortlist'}), 500
 
+# -------------------------
+# 🗺️ Geocoding Route (for Map Feature)
+# -------------------------
+
+@app.route('/geocode', methods=['POST'])
+def geocode():
+    """Convert address to coordinates using Nominatim (OpenStreetMap)"""
+    username = get_user_from_token()
     
+    if not username:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    data = request.get_json()
+    address = data.get('address')
+    
+    if not address:
+        return jsonify({'error': 'Address is required'}), 400
+    
+    try:
+        # Use Nominatim API (free OpenStreetMap geocoding)
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            'q': address,
+            'format': 'json',
+            'limit': 1,
+            'countrycodes': 'gb'  # Restrict to UK
+        }
+        headers = {
+            'User-Agent': 'HouseHuntingApp/1.0'  # Required by Nominatim
+        }
+        
+        response = requests.get(url, params=params, headers=headers)
+        results = response.json()
+        
+        if results:
+            return jsonify({
+                'lat': float(results[0]['lat']),
+                'lon': float(results[0]['lon']),
+                'display_name': results[0]['display_name']
+            }), 200
+        else:
+            return jsonify({'error': 'Address not found'}), 404
+            
+    except Exception as e:
+        print(f"Geocoding error: {e}")
+        return jsonify({'error': 'Failed to geocode address'}), 500
+
+
 if __name__ == "__main__":
     init_db()  # Initialize tables
     app.run(debug=True)
-
-
