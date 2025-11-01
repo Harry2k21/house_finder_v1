@@ -3,7 +3,7 @@
 A web application designed to simplify the process of finding and tracking properties on Rightmove. Search properties, manage requirements, save shortlists, and get expert advice on house buying in the UK.
 
 ## Features
-
+![alt text](demo.gif)
 ![alt text](image-1.png)
 ![alt text](image.png)
 ![alt text](image-2.png)
