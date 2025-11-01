@@ -6,7 +6,6 @@ A web application designed to simplify the process of finding and tracking prope
 ![alt text](demo.gif)
 ![alt text](image-1.png)
 ![alt text](image.png)
-![alt text](image-2.png)
 ![alt text](image-3.png)
 
 ### Core Features (Completed)
