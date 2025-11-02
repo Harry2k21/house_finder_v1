@@ -56,49 +56,71 @@ def execute_query(sql, params=None):
 
 def init_db():
     """Initialize database tables"""
+
     # Create Users table
     execute_query("""
-        CREATE TABLE IF NOT EXISTS user (
+        CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
+        );
     """)
-    
+
     # Create History table (user-specific)
     execute_query("""
         CREATE TABLE IF NOT EXISTS history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
             date TEXT NOT NULL,
             results TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
     """)
-    
-    # Create user requirements table
+
+    # Create User Requirements table
     execute_query("""
         CREATE TABLE IF NOT EXISTS user_requirements (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL,
-            requirements TEXT NOT NULL,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
+            user_id INTEGER NOT NULL,
+            requirement TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
     """)
-    
-    # Create user shortlist table
+
+    # Create User Shortlist table
     execute_query("""
         CREATE TABLE IF NOT EXISTS user_shortlist (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL,
-            shortlist TEXT NOT NULL,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
+            user_id INTEGER NOT NULL,
+            item TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
     """)
-    
-    print("✅ Database tables initialized")
+
+    # Create Scrape History table
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS scrape_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            url TEXT NOT NULL,
+            total_results INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    """)
+
+    # Add useful indexes for performance
+    execute_query("CREATE INDEX IF NOT EXISTS idx_history_user_id ON history(user_id);")
+    execute_query("CREATE INDEX IF NOT EXISTS idx_requirements_user_id ON user_requirements(user_id);")
+    execute_query("CREATE INDEX IF NOT EXISTS idx_shortlist_user_id ON user_shortlist(user_id);")
+    execute_query("CREATE INDEX IF NOT EXISTS idx_scrape_history_user_id ON scrape_history(user_id);")
+
+    print("✅ Database tables initialized successfully")
 
 # -------------------------
 # Authentication Routes
