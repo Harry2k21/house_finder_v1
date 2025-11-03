@@ -58,38 +58,53 @@
       </div>
     </div>
   </div>
-   <button id="themeToggle" onclick="toggleTheme()">Light Mode</button>
+  
 
   <!-- Main App (Hidden by default) -->
   <div id="app" style="display: none;">
-    <div class="header">
-      <h1>Rightmove Results Scraper</h1>
-      <div class="header-right">
+
+
+     <!-- Navigation Bar -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <h1>Rightmove Results Scraper</h1>
+      </div>
+      <div class="navbar-links">
+        <a href="#scrape-1" class="nav-link">Scrape</a>
+        <a href="#requirements-1" class="nav-link">Requirements</a>
+        <a href="#shortlist-1" class="nav-link">Shortlist</a>
+        <a href="#map-1" class="nav-link">Map</a>
+        <a href="#expert-1" class="nav-link">Expert</a>
+      </div>
+      <div class="navbar-menu">
         <span id="userDisplay"></span>
+        <button id="themeToggle" onclick="toggleTheme()">
+          <span class="theme-icon">🌙</span>
+        </button>
         <button onclick="handleLogout()" class="logout-btn">Logout</button>
       </div>
-    </div>
-    
-    <section>
+    </nav>
+
+    <section id="scrape-1">
       <input id="urlInput" type="url" placeholder="Paste Rightmove search URL here">
       <button onclick="getResults()">Get Results</button>
       <div id="output"></div>
       <div id="history"></div>
     </section>
 
-    <section>
+    <section id="requirements-1">
       <h2>My Requirements</h2>
       <div id="list"></div>
       <button id="addBtn">Add a Requirement</button>
     </section>
 
-    <section>
+    <section id="shortlist-1">
       <h2>Shortlist</h2>
       <div id="shortlist"></div>
       <button id="addShortBtn">Add to Shortlist</button>
     </section>
 
-    <section>
+    <section id="map-1">
       <h2>Shortlist Map View</h2>
       <div id="mapLoadingMessage" style="text-align: center; padding: 20px; color: var(--text-color);">
         Click "View Map" to see your shortlisted properties on the map
@@ -104,7 +119,7 @@
       </div>
     </section>
 
-    <section>
+    <section id="expert-1">
       <h2>Ask an Expert</h2>
       <div id="askExpertContainer">
         <input id="question" placeholder="Ask your question...">
