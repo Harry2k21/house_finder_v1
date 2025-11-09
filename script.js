@@ -709,7 +709,130 @@ function updateMapStatus(text, isLoading) {
     }, 3000);
   }
 }
-
+function toggleMapExpand() {
+  const mapSection = document.getElementById('map-1');
+  const mapDiv = document.getElementById('map');
+  const expandBtn = document.getElementById('expandMapBtn');
+  const expandIcon = document.getElementById('expandIcon');
+  const mapTitle = document.getElementById('mapTitle');
+  const mapStatus = document.getElementById('mapStatus');
+  const mapContainer = document.getElementById('mapContainer');
+  
+  // Get all other sections
+  const scrapeSection = document.getElementById('scrape-1');
+  const requirementsSection = document.getElementById('requirements-1');
+  const shortlistSection = document.getElementById('shortlist-1');
+  const expertSection = document.getElementById('expert-1');
+  const viewMapBtn = document.getElementById('viewMapBtn');
+  const mapLoadingMsg = document.getElementById('mapLoadingMessage');
+  
+  // Check if currently expanded
+  const isExpanded = mapDiv.style.height !== '500px';
+  
+  if (!isExpanded) {
+    // EXPAND: Hide everything else and make map fullscreen
+    scrapeSection.style.display = 'none';
+    requirementsSection.style.display = 'none';
+    shortlistSection.style.display = 'none';
+    expertSection.style.display = 'none';
+    viewMapBtn.style.display = 'none';
+    mapLoadingMsg.style.display = 'none';
+    mapTitle.style.display = 'none';
+    mapStatus.style.display = 'none';
+    
+    // Remove all padding and margins from map section and container
+    mapSection.style.padding = '0';
+    mapSection.style.margin = '0';
+    mapSection.style.maxWidth = 'none';
+    mapContainer.style.margin = '0';
+    mapContainer.style.padding = '0';
+    
+    // Make map fill edge to edge below navbar
+    mapDiv.style.height = 'calc(100vh - 70px)'; // Adjust based on your navbar height
+    mapDiv.style.width = '100vw';
+    mapDiv.style.marginLeft = 'calc(-50vw + 50%)'; // Center and expand to full width
+    mapDiv.style.borderRadius = '0';
+    mapDiv.style.border = 'none';
+    
+    // Change button text and position
+    expandIcon.textContent = '⊗';
+    expandBtn.innerHTML = '<span id="expandIcon"></span> Exit Fullscreen';
+    expandBtn.style.position = 'fixed';
+    expandBtn.style.top = '80px';
+    expandBtn.style.right = '20px';
+    expandBtn.style.zIndex = '1000';
+    expandBtn.style.background = '#dc2626';
+    expandBtn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+    
+    // Prevent body scroll
+    document.body.style.overflow = 'hidden';
+    
+    // Refresh map - CRITICAL: Multiple invalidations with delays
+    if (window.mapInstance) {
+      // Force immediate invalidation
+      window.mapInstance.invalidateSize();
+      
+      // Second invalidation after a short delay
+      setTimeout(() => {
+        window.mapInstance.invalidateSize();
+      }, 100);
+      
+      // Third invalidation to catch any late rendering
+      setTimeout(() => {
+        window.mapInstance.invalidateSize();
+      }, 300);
+      
+      // Final invalidation
+      setTimeout(() => {
+        window.mapInstance.invalidateSize();
+      }, 500);
+    }
+    
+  } else {
+    // COLLAPSE: Show everything again
+    scrapeSection.style.display = '';
+    requirementsSection.style.display = '';
+    shortlistSection.style.display = '';
+    expertSection.style.display = '';
+    viewMapBtn.style.display = '';
+    mapLoadingMsg.style.display = '';
+    mapTitle.style.display = '';
+    mapStatus.style.display = '';
+    
+    // Reset map section and container
+    mapSection.style.padding = '';
+    mapSection.style.margin = '';
+    mapSection.style.maxWidth = '';
+    mapContainer.style.margin = '';
+    mapContainer.style.padding = '';
+    
+    // Reset map
+    mapDiv.style.height = '500px';
+    mapDiv.style.width = '';
+    mapDiv.style.marginLeft = '';
+    mapDiv.style.borderRadius = '8px';
+    mapDiv.style.border = '2px solid var(--border-color)';
+    
+    // Reset button
+    expandBtn.innerHTML = '<span id="expandIcon">⛶</span> Expand Map';
+    expandBtn.style.position = '';
+    expandBtn.style.top = '';
+    expandBtn.style.right = '';
+    expandBtn.style.zIndex = '';
+    expandBtn.style.background = 'var(--primary-color)';
+    expandBtn.style.boxShadow = '';
+    
+    // Restore body scroll
+    document.body.style.overflow = '';
+    
+    // Refresh map on collapse too
+    if (window.mapInstance) {
+      setTimeout(() => {
+        window.mapInstance.invalidateSize();
+      }, 100);
+    }
+  }
+}
 // ============================================
 // ASK EXPERT
 // ============================================

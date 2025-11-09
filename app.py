@@ -59,7 +59,7 @@ def init_db():
 
     # Create Users table
     execute_query("""
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE IF NOT EXISTS user (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             email TEXT UNIQUE NOT NULL,
@@ -68,15 +68,15 @@ def init_db():
         );
     """)
 
-    # Create History table (user-specific)
+    # Create User History table (renamed from history)
     execute_query("""
-        CREATE TABLE IF NOT EXISTS history (
+        CREATE TABLE IF NOT EXISTS user_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
+            url TEXT NOT NULL,
             date TEXT NOT NULL,
             results TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
     """)
 
@@ -85,9 +85,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS user_requirements (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
-            requirement TEXT NOT NULL,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            requirements TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
     """)
 
@@ -96,29 +95,16 @@ def init_db():
         CREATE TABLE IF NOT EXISTS user_shortlist (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
-            item TEXT NOT NULL,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-    """)
-
-    # Create Scrape History table
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS scrape_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            url TEXT NOT NULL,
-            total_results INTEGER,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            shortlist TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
     """)
 
     # Add useful indexes for performance
-    execute_query("CREATE INDEX IF NOT EXISTS idx_history_user_id ON history(user_id);")
+    execute_query("CREATE INDEX IF NOT EXISTS idx_user_history_user_id ON user_history(user_id);")
+    execute_query("CREATE INDEX IF NOT EXISTS idx_user_history_date ON user_history(user_id, date);")
     execute_query("CREATE INDEX IF NOT EXISTS idx_requirements_user_id ON user_requirements(user_id);")
     execute_query("CREATE INDEX IF NOT EXISTS idx_shortlist_user_id ON user_shortlist(user_id);")
-    execute_query("CREATE INDEX IF NOT EXISTS idx_scrape_history_user_id ON scrape_history(user_id);")
 
     print("✅ Database tables initialized successfully")
 
@@ -230,9 +216,26 @@ def verify_token_route():
 
 @app.route("/debug_data")
 def debug_data():
-    result = execute_query("SELECT * FROM history")
-    rows = result[0]["results"]["rows"]
-    return jsonify([{"date": row[1], "results": row[2]} for row in rows])
+    print("🔍 Debug endpoint called")
+    try:
+        # Test user_history table
+        result = execute_query("SELECT * FROM user_history")
+        print(f"📊 user_history query result: {result}")
+        
+        if result and result[0].get("results"):
+            rows = result[0]["results"].get("rows", [])
+            history_data = [{"id": row[0], "user_id": row[1], "url": row[2], "date": row[3], "results": row[4]} for row in rows]
+            return jsonify({
+                "user_history": history_data,
+                "raw_response": result
+            })
+        else:
+            return jsonify({"error": "No results", "raw_response": result})
+    except Exception as e:
+        print(f"❌ Debug error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
@@ -241,99 +244,120 @@ def serve_index():
     return send_from_directory('.', 'index.html')
 
 # -------------------------
-# 🕷️ Web Scraper (User-Specific)
+# Helper function to get user data from token
 # -------------------------
-@app.route("/scrape", methods=["GET"])
-def scrape():
-    # Get username from token
+
+def get_user_from_token():
+    """Extract user_id and username from JWT token"""
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
     
     if not token:
-        return jsonify({"error": "Unauthorized"}), 401
+        return None
     
     user_data = verify_token(token)
     
     if not user_data:
-        return jsonify({"error": "Invalid or expired token"}), 401
+        return None
     
+    return user_data
+
+# -------------------------
+# 🕷️ Web Scraper (User-Specific)
+# -------------------------
+@app.route("/scrape", methods=["GET"])
+def scrape():
+    # Get user data from token
+    user_data = get_user_from_token()
+    if not user_data:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user_id = user_data.get("user_id")
     username = user_data.get("username")
-    
+
+    print(f"🔐 User authenticated - user_id: {user_id}, username: {username}")
+
     url = request.args.get("url")
     if not url:
         return jsonify({"error": "No URL provided"}), 400
 
     try:
+        print(f"🌐 Fetching URL: {url}")
         headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers)
         soup = BeautifulSoup(response.text, "html.parser")
         result_count = soup.find("div", class_="ResultsCount_resultsCount__Kqeah")
 
-        if result_count:
-            count_text = result_count.text.strip()
-        else:
-            count_text = "0"
-            
+        count_text = result_count.text.strip() if result_count else "0"
         today = str(date.today())
 
-        # Check if user already has an entry for today
-        result = execute_query(
-            "SELECT * FROM history WHERE username = ? AND date = ?", 
-            [username, today]
-        )
-        
-        if result[0]["results"]["rows"]:
-            # Update existing entry for this user today
-            execute_query(
-                "UPDATE history SET results = ? WHERE username = ? AND date = ?", 
-                [count_text, username, today]
-            )
-        else:
-            # Insert new entry for this user
-            execute_query(
-                "INSERT INTO history (username, date, results) VALUES (?, ?, ?)", 
-                [username, today, count_text]
-            )
+        print(f"🔍 Scraping for user_id: {user_id}, URL: {url}, Date: {today}, Results: {count_text}")
 
-        # Get this user's history only
-        result = execute_query(
-            "SELECT * FROM history WHERE username = ? ORDER BY date DESC", 
-            [username]
-        )
-        rows = result[0]["results"]["rows"]
-        history_data = [{"date": row[2], "results": row[3]} for row in rows]
+        # Check if entry exists for same user, date, and URL
+        check_query = "SELECT * FROM user_history WHERE user_id = ? AND date = ? AND url = ?"
+        check_result = execute_query(check_query, [user_id, today, url])
+
+        # ✅ Handle results correctly
+        existing_rows = []
+        if check_result and "results" in check_result[0] and "rows" in check_result[0]["results"]:
+            existing_rows = check_result[0]["results"]["rows"]
+
+        if existing_rows:
+            update_query = "UPDATE user_history SET results = ? WHERE user_id = ? AND date = ? AND url = ?"
+            execute_query(update_query, [count_text, user_id, today, url])
+            print("✏️ Updated existing entry")
+        else:
+            insert_query = "INSERT INTO user_history (user_id, url, date, results) VALUES (?, ?, ?, ?)"
+            execute_query(insert_query, [user_id, url, today, count_text])
+            print("➕ Inserted new entry")
+
+        # ✅ Now fetch ALL history for this user (not just today)
+        history_query = """
+            SELECT url, date, results
+            FROM user_history
+            WHERE user_id = ?
+            ORDER BY date DESC, created_at DESC
+        """
+        history_result = execute_query(history_query, [user_id])
+
+        # Format results properly
+        history_data = []
+        if history_result and "results" in history_result[0] and "rows" in history_result[0]["results"]:
+            for row in history_result[0]["results"]["rows"]:
+                history_data.append({
+                    "url": row[0],
+                    "date": row[1],
+                    "results": row[2]
+                })
+
+        print(f"📋 Returning history data: {len(history_data)} entries")
 
         return jsonify({"results": count_text, "history": history_data})
-        
+
     except Exception as e:
-        print(f"Scrape error: {e}")
+        print(f"❌ Scrape error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route("/history", methods=["GET"])
 def history():
-    # Get username from token
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    
-    if not token:
-        return jsonify({"error": "Unauthorized"}), 401
-    
-    user_data = verify_token(token)
-    
+    user_data = get_user_from_token()
     if not user_data:
-        return jsonify({"error": "Invalid or expired token"}), 401
-    
-    username = user_data.get("username")
-    
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user_id = user_data.get("user_id")
+
     try:
-        # Get only this user's history
         result = execute_query(
-            "SELECT * FROM history WHERE username = ? ORDER BY date DESC", 
-            [username]
+            "SELECT url, date, results FROM user_history WHERE user_id = ? ORDER BY date DESC, created_at DESC",
+            [user_id]
         )
         rows = result[0]["results"]["rows"]
-        return jsonify([{"date": row[2], "results": row[3]} for row in rows])
+        return jsonify([{"url": r[0], "date": r[1], "results": r[2]} for r in rows])
     except Exception as e:
         print(f"History error: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 # -------------------------
 # 🧠  "Ask an Expert" Feature
@@ -388,26 +412,15 @@ def ask_expert():
 # 📋 Requirements & Shortlist Routes
 # -------------------------
 
-def get_user_from_token():
-    """Extract username from JWT token"""
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    
-    if not token:
-        return None
-    
-    user_data = verify_token(token)
-    
-    if not user_data:
-        return None
-    
-    return user_data.get("username")
-
 @app.route('/requirements', methods=['GET'])
 def get_requirements():
-    username = get_user_from_token()
+    user_data = get_user_from_token()
     
-    if not username:
+    if not user_data:
         return jsonify({'error': 'Unauthorized'}), 401
+    
+    username = user_data.get("username")
+    print(f"📋 Fetching requirements for username: {username}")
     
     try:
         result = execute_query(
@@ -415,26 +428,35 @@ def get_requirements():
             [username]
         )
         
+        print(f"📊 Requirements query result: {result}")
+        
         rows = result[0]["results"]["rows"]
         
         if rows:
             requirements = json.loads(rows[0][0])
+            print(f"✅ Found requirements: {requirements}")
             return jsonify(requirements), 200
         else:
+            print(f"⚠️ No requirements found for username: {username}")
             return jsonify([]), 200
             
     except Exception as e:
-        print(f"Error fetching requirements: {e}")
+        print(f"❌ Error fetching requirements: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': 'Failed to fetch requirements'}), 500
 
 @app.route('/requirements', methods=['POST'])
 def save_requirements():
-    username = get_user_from_token()
+    user_data = get_user_from_token()
     
-    if not username:
+    if not user_data:
         return jsonify({'error': 'Unauthorized'}), 401
     
+    username = user_data.get("username")
+    
     data = request.get_json()
+    print(f"💾 Saving requirements for username: {username}, data: {data}")
     
     if 'requirements' not in data:
         return jsonify({'error': 'Missing requirements data'}), 400
@@ -448,33 +470,42 @@ def save_requirements():
             [username]
         )
         
+        print(f"📊 Check existing requirements: {result}")
+        
         existing = result[0]["results"]["rows"]
         
         if existing:
             # Update existing
-            execute_query(
+            update_result = execute_query(
                 "UPDATE user_requirements SET requirements = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
                 [requirements_json, username]
             )
+            print(f"✏️ Updated requirements: {update_result}")
         else:
             # Insert new
-            execute_query(
+            insert_result = execute_query(
                 "INSERT INTO user_requirements (username, requirements) VALUES (?, ?)",
                 [username, requirements_json]
             )
+            print(f"➕ Inserted requirements: {insert_result}")
         
         return jsonify({'success': True}), 200
         
     except Exception as e:
-        print(f"Error saving requirements: {e}")
+        print(f"❌ Error saving requirements: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': 'Failed to save requirements'}), 500
 
 @app.route('/shortlist', methods=['GET'])
 def get_shortlist():
-    username = get_user_from_token()
+    user_data = get_user_from_token()
     
-    if not username:
+    if not user_data:
         return jsonify({'error': 'Unauthorized'}), 401
+    
+    username = user_data.get("username")
+    print(f"📋 Fetching shortlist for username: {username}")
     
     try:
         result = execute_query(
@@ -482,26 +513,35 @@ def get_shortlist():
             [username]
         )
         
+        print(f"📊 Shortlist query result: {result}")
+        
         rows = result[0]["results"]["rows"]
         
         if rows:
             shortlist = json.loads(rows[0][0])
+            print(f"✅ Found shortlist: {shortlist}")
             return jsonify(shortlist), 200
         else:
+            print(f"⚠️ No shortlist found for username: {username}")
             return jsonify([]), 200
             
     except Exception as e:
-        print(f"Error fetching shortlist: {e}")
+        print(f"❌ Error fetching shortlist: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': 'Failed to fetch shortlist'}), 500
 
 @app.route('/shortlist', methods=['POST'])
 def save_shortlist():
-    username = get_user_from_token()
+    user_data = get_user_from_token()
     
-    if not username:
+    if not user_data:
         return jsonify({'error': 'Unauthorized'}), 401
     
+    username = user_data.get("username")
+    
     data = request.get_json()
+    print(f"💾 Saving shortlist for username: {username}, data: {data}")
     
     if 'shortlist' not in data:
         return jsonify({'error': 'Missing shortlist data'}), 400
@@ -515,25 +555,31 @@ def save_shortlist():
             [username]
         )
         
+        print(f"📊 Check existing shortlist: {result}")
+        
         existing = result[0]["results"]["rows"]
         
         if existing:
             # Update existing
-            execute_query(
+            update_result = execute_query(
                 "UPDATE user_shortlist SET shortlist = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?",
                 [shortlist_json, username]
             )
+            print(f"✏️ Updated shortlist: {update_result}")
         else:
             # Insert new
-            execute_query(
+            insert_result = execute_query(
                 "INSERT INTO user_shortlist (username, shortlist) VALUES (?, ?)",
                 [username, shortlist_json]
             )
+            print(f"➕ Inserted shortlist: {insert_result}")
         
         return jsonify({'success': True}), 200
         
     except Exception as e:
-        print(f"Error saving shortlist: {e}")
+        print(f"❌ Error saving shortlist: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': 'Failed to save shortlist'}), 500
 
 # -------------------------
@@ -543,9 +589,9 @@ def save_shortlist():
 @app.route('/geocode', methods=['POST'])
 def geocode():
     """Convert address to coordinates using Nominatim (OpenStreetMap)"""
-    username = get_user_from_token()
+    user_data = get_user_from_token()
     
-    if not username:
+    if not user_data:
         return jsonify({'error': 'Unauthorized'}), 401
     
     data = request.get_json()

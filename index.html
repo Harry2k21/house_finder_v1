@@ -105,7 +105,7 @@
     </section>
 
     <section id="map-1">
-      <h2>Shortlist Map View</h2>
+      <h2 id="mapTitle">Shortlist Map View</h2>
       <div id="mapLoadingMessage" style="text-align: center; padding: 20px; color: var(--text-color);">
         Click "View Map" to see your shortlisted properties on the map
       </div>
@@ -115,6 +115,9 @@
         <div id="mapStatus" style="padding: 12px; background: rgba(37, 99, 235, 0.1); border-radius: 8px; margin-bottom: 15px; text-align: center; font-size: 14px;">
           <span id="mapStatusText"></span>
         </div>
+        <button id="expandMapBtn" onclick="toggleMapExpand()" style="margin-bottom: 10px; padding: 8px 16px; background: var(--primary-color); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+          <span id="expandIcon">⛶</span> Expand Map
+        </button>
         <div id="map" style="height: 500px; width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid var(--border-color);"></div>
       </div>
     </section>

@@ -816,6 +816,25 @@ section h2 {
   animation: spin 1s linear infinite;
 }
 
+/* Expanded Map Overlay Styles */
+#expandedMapOverlay {
+  font-family: inherit;
+}
+
+#expandedMapOverlay .leaflet-container {
+  background: var(--bg-color);
+}
+
+#expandedMap {
+  background: var(--bg-color);
+}
+
+/* Ensure leaflet controls are visible in expanded view */
+#expandedMap .leaflet-control-zoom,
+#expandedMap .leaflet-control-attribution {
+  z-index: 10001 !important;
+}
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
