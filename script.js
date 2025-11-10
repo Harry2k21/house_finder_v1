@@ -571,6 +571,11 @@ function toggleMapView() {
 
 function initializeMap() {
   if (!map) {
+
+      const mapElement = document.getElementById('map');
+    mapElement.style.width = '100%';
+    mapElement.style.height = '600px'; 
+    
     map = L.map('map').setView([51.5074, -0.1278], 10);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -755,7 +760,6 @@ function toggleMapExpand() {
     mapDiv.style.border = 'none';
     
     // Change button text and position
-    expandIcon.textContent = '⊗';
     expandBtn.innerHTML = '<span id="expandIcon"></span> Exit Fullscreen';
     expandBtn.style.position = 'fixed';
     expandBtn.style.top = '80px';
