@@ -65,6 +65,8 @@ pip install -r requirements.txt
 ```
 SECRET_KEY=
 GROQ_API_KEY=
+TURSO_AUTH_TOKEN=
+TURSO_DATABASE_URL=
 ```
 
 4. Run the Flask server
