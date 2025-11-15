@@ -760,13 +760,18 @@ function toggleMapExpand() {
     mapDiv.style.border = 'none';
     
     // Change button text and position
-    expandBtn.innerHTML = '<span id="expandIcon"></span> Exit Fullscreen';
+    expandBtn.innerHTML = '<span id="expandIcon">✕</span>';
     expandBtn.style.position = 'fixed';
-    expandBtn.style.top = '80px';
+    expandBtn.style.top = '90px';
     expandBtn.style.right = '20px';
     expandBtn.style.zIndex = '1000';
     expandBtn.style.background = '#dc2626';
     expandBtn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+    expandBtn.style.padding = '8px 12px';
+    expandBtn.style.fontSize = '18px';
+    expandBtn.style.minWidth = 'auto';
+    expandBtn.style.width = 'auto';
+    // expandMapBtn.style.position = 'center';
     
     // Prevent body scroll
     document.body.style.overflow = 'hidden';
