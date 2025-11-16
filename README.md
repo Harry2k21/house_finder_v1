@@ -173,6 +173,7 @@ GROQ_API_KEY        # API key from Groq for AI chatbot
 - Integration with other property sites
 - Mobile app version
 - Saved search alerts
+- Data for Crime Rates/Good Schools/Noise Levels
 
 ## License
 
