@@ -341,6 +341,12 @@ async function saveRequirements() {
       },
       body: JSON.stringify({ requirements: reqs })
     });
+    
+    // Refresh side menu if full screen map is visible
+    const overlay = document.getElementById('fullScreenMapOverlay');
+    if (overlay && overlay.style.display === 'flex') {
+      populateSideMenu();
+    }
   } catch (err) {
     console.error('Failed to save requirements:', err);
   }
@@ -448,6 +454,16 @@ async function saveShortlist() {
     if (mapInitialized && document.getElementById('mapContainer').style.display !== 'none') {
       await loadMap();
     }
+    
+    // Refresh full screen map if it's visible
+    const overlay = document.getElementById('fullScreenMapOverlay');
+    if (overlay && overlay.style.display === 'flex') {
+      await loadFullScreenMap();
+      populateSideMenu();
+    }
+    
+    // Also refresh main shortlist
+    await loadShortlist();
   } catch (err) {
     console.error('Failed to save shortlist:', err);
   }
@@ -571,8 +587,7 @@ function toggleMapView() {
 
 function initializeMap() {
   if (!map) {
-
-      const mapElement = document.getElementById('map');
+    const mapElement = document.getElementById('map');
     mapElement.style.width = '100%';
     mapElement.style.height = '600px'; 
     
@@ -582,6 +597,9 @@ function initializeMap() {
       attribution: '© OpenStreetMap contributors',
       maxZoom: 19
     }).addTo(map);
+    
+    // Store reference for invalidation
+    window.mapInstance = map;
     
     mapInitialized = true;
   }
@@ -714,132 +732,316 @@ function updateMapStatus(text, isLoading) {
     }, 3000);
   }
 }
+let fullScreenMap = null;
+let fullScreenMarkers = [];
+
 function toggleMapExpand() {
-  const mapSection = document.getElementById('map-1');
-  const mapDiv = document.getElementById('map');
-  const expandBtn = document.getElementById('expandMapBtn');
-  const expandIcon = document.getElementById('expandIcon');
-  const mapTitle = document.getElementById('mapTitle');
-  const mapStatus = document.getElementById('mapStatus');
-  const mapContainer = document.getElementById('mapContainer');
-  
-  // Get all other sections
-  const scrapeSection = document.getElementById('scrape-1');
-  const requirementsSection = document.getElementById('requirements-1');
-  const shortlistSection = document.getElementById('shortlist-1');
-  const expertSection = document.getElementById('expert-1');
-  const viewMapBtn = document.getElementById('viewMapBtn');
-  const mapLoadingMsg = document.getElementById('mapLoadingMessage');
-  
-  // Check if currently expanded
-  const isExpanded = mapDiv.style.height !== '500px';
+  const overlay = document.getElementById('fullScreenMapOverlay');
+  const isExpanded = overlay.style.display === 'flex';
   
   if (!isExpanded) {
-    // EXPAND: Hide everything else and make map fullscreen
-    scrapeSection.style.display = 'none';
-    requirementsSection.style.display = 'none';
-    shortlistSection.style.display = 'none';
-    expertSection.style.display = 'none';
-    viewMapBtn.style.display = 'none';
-    mapLoadingMsg.style.display = 'none';
-    mapTitle.style.display = 'none';
-    mapStatus.style.display = 'none';
-    
-    // Remove all padding and margins from map section and container
-    mapSection.style.padding = '0';
-    mapSection.style.margin = '0';
-    mapSection.style.maxWidth = 'none';
-    mapContainer.style.margin = '0';
-    mapContainer.style.padding = '0';
-    
-    // Make map fill edge to edge below navbar
-    mapDiv.style.height = 'calc(100vh - 70px)'; // Adjust based on your navbar height
-    mapDiv.style.width = '100vw';
-    mapDiv.style.marginLeft = 'calc(-50vw + 50%)'; // Center and expand to full width
-    mapDiv.style.borderRadius = '0';
-    mapDiv.style.border = 'none';
-    
-    // Change button text and position
-    expandBtn.innerHTML = '<span id="expandIcon">✕</span>';
-    expandBtn.style.position = 'fixed';
-    expandBtn.style.top = '90px';
-    expandBtn.style.right = '20px';
-    expandBtn.style.zIndex = '1000';
-    expandBtn.style.background = '#dc2626';
-    expandBtn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
-    expandBtn.style.padding = '8px 12px';
-    expandBtn.style.fontSize = '18px';
-    expandBtn.style.minWidth = 'auto';
-    expandBtn.style.width = 'auto';
-    // expandMapBtn.style.position = 'center';
-    
-    // Prevent body scroll
+    // EXPAND: Show full screen overlay
+    overlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     
-    // Refresh map - CRITICAL: Multiple invalidations with delays
-    if (window.mapInstance) {
-      // Force immediate invalidation
-      window.mapInstance.invalidateSize();
-      
-      // Second invalidation after a short delay
-      setTimeout(() => {
-        window.mapInstance.invalidateSize();
-      }, 100);
-      
-      // Third invalidation to catch any late rendering
-      setTimeout(() => {
-        window.mapInstance.invalidateSize();
-      }, 300);
-      
-      // Final invalidation
-      setTimeout(() => {
-        window.mapInstance.invalidateSize();
-      }, 500);
+    // Initialize full screen map if not already done
+    if (!fullScreenMap) {
+      initializeFullScreenMap();
+    }
+    
+    // Load map data into full screen map
+    loadFullScreenMap();
+    
+    // Populate side menu (async, so don't await)
+    populateSideMenu();
+    
+    // Set initial side menu button state (menu starts expanded, so show close icon)
+    const toggleBtn = document.getElementById('toggleSideMenuBtn');
+    if (toggleBtn) {
+      toggleBtn.textContent = '✕';
     }
     
   } else {
-    // COLLAPSE: Show everything again
-    scrapeSection.style.display = '';
-    requirementsSection.style.display = '';
-    shortlistSection.style.display = '';
-    expertSection.style.display = '';
-    viewMapBtn.style.display = '';
-    mapLoadingMsg.style.display = '';
-    mapTitle.style.display = '';
-    mapStatus.style.display = '';
-    
-    // Reset map section and container
-    mapSection.style.padding = '';
-    mapSection.style.margin = '';
-    mapSection.style.maxWidth = '';
-    mapContainer.style.margin = '';
-    mapContainer.style.padding = '';
-    
-    // Reset map
-    mapDiv.style.height = '500px';
-    mapDiv.style.width = '';
-    mapDiv.style.marginLeft = '';
-    mapDiv.style.borderRadius = '8px';
-    mapDiv.style.border = '2px solid var(--border-color)';
-    
-    // Reset button
-    expandBtn.innerHTML = '<span id="expandIcon">⛶</span> Expand Map';
-    expandBtn.style.position = '';
-    expandBtn.style.top = '';
-    expandBtn.style.right = '';
-    expandBtn.style.zIndex = '';
-    expandBtn.style.background = 'var(--primary-color)';
-    expandBtn.style.boxShadow = '';
-    
-    // Restore body scroll
+    // COLLAPSE: Hide full screen overlay
+    overlay.style.display = 'none';
     document.body.style.overflow = '';
-    
-    // Refresh map on collapse too
-    if (window.mapInstance) {
-      setTimeout(() => {
-        window.mapInstance.invalidateSize();
-      }, 100);
+  }
+}
+
+function initializeFullScreenMap() {
+  const fullScreenMapDiv = document.getElementById('fullScreenMap');
+  if (!fullScreenMapDiv) return;
+  
+  fullScreenMap = L.map('fullScreenMap').setView([51.5074, -0.1278], 10);
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(fullScreenMap);
+  
+  // Store reference for invalidation
+  window.fullScreenMapInstance = fullScreenMap;
+  
+  // Invalidate size after initialization
+  setTimeout(() => {
+    if (fullScreenMap) {
+      fullScreenMap.invalidateSize();
     }
+  }, 100);
+}
+
+async function loadFullScreenMap() {
+  if (!authToken || !fullScreenMap) return;
+  
+  try {
+    const response = await fetch(`${API_URL}/shortlist`, {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    
+    if (!response.ok) return;
+    
+    const shortlist = await response.json();
+    
+    if (shortlist.length === 0) return;
+    
+    // Clear existing markers
+    fullScreenMarkers.forEach(marker => marker.remove());
+    fullScreenMarkers = [];
+    
+    const bounds = [];
+    
+    for (let i = 0; i < shortlist.length; i++) {
+      const property = shortlist[i];
+      
+      if (!property.address) continue;
+      
+      // Check if we already have coordinates
+      if (!property.coordinates) {
+        const coords = await geocodeAddress(property.address);
+        if (coords) {
+          property.coordinates = coords;
+        }
+      }
+      
+      if (property.coordinates) {
+        const marker = L.marker([property.coordinates.lat, property.coordinates.lon])
+          .addTo(fullScreenMap)
+          .bindPopup(`
+            <div>
+              <h3>${property.price || 'Price not set'}</h3>
+              <p><strong>${property.address}</strong></p>
+              <p>${property.bedrooms || '?'} bed • ${property.type || 'Type not set'}</p>
+              ${property.link ? `<a href="${property.link}" target="_blank">View Listing →</a>` : ''}
+            </div>
+          `);
+        
+        fullScreenMarkers.push(marker);
+        bounds.push([property.coordinates.lat, property.coordinates.lon]);
+      }
+    }
+    
+    // Fit map to show all markers
+    if (bounds.length > 0) {
+      fullScreenMap.fitBounds(bounds, { padding: [50, 50] });
+    }
+    
+    // Invalidate size after loading markers
+    setTimeout(() => {
+      if (fullScreenMap) {
+        fullScreenMap.invalidateSize();
+      }
+    }, 200);
+    
+  } catch (err) {
+    console.error('Full screen map loading error:', err);
+  }
+}
+
+async function populateSideMenu() {
+  if (!authToken) return;
+  
+  // Load shortlist from database
+  const sideMenuShortlist = document.getElementById('sideMenuShortlist');
+  if (sideMenuShortlist) {
+    try {
+      const response = await fetch(`${API_URL}/shortlist`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      
+      if (response.ok) {
+        const saved = await response.json();
+        sideMenuShortlist.innerHTML = "";
+        
+        (saved || []).forEach(item => {
+          addShortlistItemToSideMenu(item.address, item.price, item.bedrooms, item.type, item.link);
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load shortlist for side menu:', err);
+    }
+  }
+  
+  // Load requirements from database
+  const sideMenuRequirements = document.getElementById('sideMenuRequirements');
+  if (sideMenuRequirements) {
+    try {
+      const response = await fetch(`${API_URL}/requirements`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      
+      if (response.ok) {
+        const saved = await response.json();
+        sideMenuRequirements.innerHTML = "";
+        
+        (saved || []).forEach(req => {
+          addRequirementToSideMenu(req.text, req.checked);
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load requirements for side menu:', err);
+    }
+  }
+}
+
+function addShortlistItemToSideMenu(address = "", price = "", bedrooms = "", type = "", link = "") {
+  const sideMenuShortlist = document.getElementById('sideMenuShortlist');
+  if (!sideMenuShortlist) return;
+
+  const itemDiv = document.createElement("div");
+  itemDiv.className = "short-item";
+  itemDiv.style.display = "flex";
+  itemDiv.style.flexDirection = "column";
+  itemDiv.style.gap = "8px";
+
+  const inputContainer = document.createElement("div");
+  inputContainer.style.display = "flex";
+  inputContainer.style.gap = "8px";
+  inputContainer.style.flexWrap = "wrap";
+
+  const createInput = (placeholder, value) => {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = placeholder;
+    input.value = value;
+    input.style.flex = "1";
+    input.style.minWidth = "150px";
+    input.addEventListener("input", () => {
+      saveShortlist();
+      // Also update main shortlist
+      loadShortlist();
+    });
+    return input;
+  };
+
+  const addressInput = createInput("Address", address);
+  const priceInput = createInput("Price", price);
+  const bedroomsInput = createInput("Bedrooms", bedrooms);
+  const typeInput = createInput("Type", type);
+  const linkInput = createInput("Rightmove Link", link);
+
+  addressInput.style.flex = "2";
+  linkInput.style.flex = "2";
+
+  const delBtn = document.createElement("button");
+  delBtn.textContent = "❌";
+  delBtn.style.width = "auto";
+  delBtn.style.padding = "8px 14px";
+  delBtn.onclick = async () => {
+    sideMenuShortlist.removeChild(itemDiv);
+    shortlistCount--;
+    document.getElementById("addShortBtn").disabled = false;
+    await saveShortlist();
+    // Also update main shortlist
+    await loadShortlist();
+    // Refresh side menu
+    await populateSideMenu();
+  };
+
+  inputContainer.appendChild(addressInput);
+  inputContainer.appendChild(priceInput);
+  inputContainer.appendChild(bedroomsInput);
+  inputContainer.appendChild(typeInput);
+  inputContainer.appendChild(delBtn);
+
+  itemDiv.appendChild(inputContainer);
+  itemDiv.appendChild(linkInput);
+
+  sideMenuShortlist.appendChild(itemDiv);
+}
+
+function addRequirementToSideMenu(text = "", checked = false) {
+  const sideMenuRequirements = document.getElementById('sideMenuRequirements');
+  if (!sideMenuRequirements) return;
+
+  const reqDiv = document.createElement("div");
+  reqDiv.className = "requirement";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = checked;
+  checkbox.addEventListener("change", () => {
+    saveRequirements();
+    // Also update main requirements
+    loadRequirements();
+  });
+
+  const textInput = document.createElement("input");
+  textInput.type = "text";
+  textInput.placeholder = "Enter requirement...";
+  textInput.value = text;
+  textInput.addEventListener("input", () => {
+    saveRequirements();
+    // Also update main requirements
+    loadRequirements();
+  });
+
+  const delBtn = document.createElement("button");
+  delBtn.textContent = "❌";
+  delBtn.onclick = async () => {
+    sideMenuRequirements.removeChild(reqDiv);
+    count--;
+    document.getElementById("addBtn").disabled = false;
+    await saveRequirements();
+    // Also update main requirements
+    await loadRequirements();
+    // Refresh side menu
+    await populateSideMenu();
+  };
+
+  reqDiv.appendChild(checkbox);
+  reqDiv.appendChild(textInput);
+  reqDiv.appendChild(delBtn);
+
+  sideMenuRequirements.appendChild(reqDiv);
+}
+
+function toggleSideMenu() {
+  const sideMenu = document.getElementById('sideMenu');
+  const toggleBtn = document.getElementById('toggleSideMenuBtn');
+  if (sideMenu) {
+    const isCollapsed = sideMenu.classList.toggle('collapsed');
+    if (toggleBtn) {
+      toggleBtn.textContent = isCollapsed ? '☰' : '✕';
+    }
+  }
+}
+
+function toggleSideMenuSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  if (section) {
+    const parentSection = section.closest('.side-menu-section');
+    if (parentSection) {
+      parentSection.classList.toggle('collapsed');
+    }
+  }
+}
+
+function fitMapToMarkers() {
+  if (!fullScreenMap || fullScreenMarkers.length === 0) return;
+  
+  const bounds = fullScreenMarkers.map(marker => marker.getLatLng());
+  if (bounds.length > 0) {
+    fullScreenMap.fitBounds(bounds, { padding: [50, 50] });
   }
 }
 // ============================================
