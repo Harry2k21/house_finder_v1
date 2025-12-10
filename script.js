@@ -321,16 +321,39 @@ function createHistoryEl() {
 async function saveRequirements() {
   if (!authToken) return;
   
+  // Collect requirements from main section
   const list = document.getElementById("list");
   const reqs = [];
-  list.querySelectorAll(".requirement").forEach(reqDiv => {
-    const checkbox = reqDiv.querySelector("input[type=checkbox]");
-    const textInput = reqDiv.querySelector("input[type=text]");
-    reqs.push({
-      checked: checkbox.checked,
-      text: textInput.value
+  if (list) {
+    list.querySelectorAll(".requirement").forEach(reqDiv => {
+      const checkbox = reqDiv.querySelector("input[type=checkbox]");
+      const textInput = reqDiv.querySelector("input[type=text]");
+      if (checkbox && textInput) {
+        reqs.push({
+          checked: checkbox.checked,
+          text: textInput.value
+        });
+      }
     });
-  });
+  }
+  
+  // Also collect from side menu if it exists (use side menu as source of truth when in full screen mode)
+  const sideMenuRequirements = document.getElementById('sideMenuRequirements');
+  const overlay = document.getElementById('fullScreenMapOverlay');
+  if (sideMenuRequirements && overlay && overlay.style.display === 'flex') {
+    // When in full screen mode, use side menu data
+    reqs.length = 0; // Clear existing
+    sideMenuRequirements.querySelectorAll(".requirement").forEach(reqDiv => {
+      const checkbox = reqDiv.querySelector("input[type=checkbox]");
+      const textInput = reqDiv.querySelector("input[type=text]");
+      if (checkbox && textInput) {
+        reqs.push({
+          checked: checkbox.checked,
+          text: textInput.value
+        });
+      }
+    });
+  }
   
   try {
     await fetch(`${API_URL}/requirements`, {
@@ -342,11 +365,11 @@ async function saveRequirements() {
       body: JSON.stringify({ requirements: reqs })
     });
     
-    // Refresh side menu if full screen map is visible
-    const overlay = document.getElementById('fullScreenMapOverlay');
+    // Refresh side menu and main section after save
     if (overlay && overlay.style.display === 'flex') {
       populateSideMenu();
     }
+    loadRequirements(); // Refresh main section
   } catch (err) {
     console.error('Failed to save requirements:', err);
   }
@@ -427,18 +450,43 @@ function addRequirement(text = "", checked = false) {
 async function saveShortlist() {
   if (!authToken) return;
   
+  // Collect shortlist items from main section
   const list = document.getElementById("shortlist");
   const items = [];
-  list.querySelectorAll(".short-item").forEach(itemDiv => {
-    const inputs = itemDiv.querySelectorAll("input[type=text]");
-    items.push({
-      address: inputs[0].value,
-      price: inputs[1].value,
-      bedrooms: inputs[2].value,
-      type: inputs[3].value,
-      link: inputs[4].value
+  if (list) {
+    list.querySelectorAll(".short-item").forEach(itemDiv => {
+      const inputs = itemDiv.querySelectorAll("input[type=text]");
+      if (inputs.length >= 5) {
+        items.push({
+          address: inputs[0].value,
+          price: inputs[1].value,
+          bedrooms: inputs[2].value,
+          type: inputs[3].value,
+          link: inputs[4].value
+        });
+      }
     });
-  });
+  }
+  
+  // Also collect from side menu if it exists (use side menu as source of truth when in full screen mode)
+  const sideMenuShortlist = document.getElementById('sideMenuShortlist');
+  const overlay = document.getElementById('fullScreenMapOverlay');
+  if (sideMenuShortlist && overlay && overlay.style.display === 'flex') {
+    // When in full screen mode, use side menu data
+    items.length = 0; // Clear existing
+    sideMenuShortlist.querySelectorAll(".short-item").forEach(itemDiv => {
+      const inputs = itemDiv.querySelectorAll("input[type=text]");
+      if (inputs.length >= 5) {
+        items.push({
+          address: inputs[0].value,
+          price: inputs[1].value,
+          bedrooms: inputs[2].value,
+          type: inputs[3].value,
+          link: inputs[4].value
+        });
+      }
+    });
+  }
   
   try {
     await fetch(`${API_URL}/shortlist`, {
@@ -456,7 +504,6 @@ async function saveShortlist() {
     }
     
     // Refresh full screen map if it's visible
-    const overlay = document.getElementById('fullScreenMapOverlay');
     if (overlay && overlay.style.display === 'flex') {
       await loadFullScreenMap();
       populateSideMenu();
@@ -875,6 +922,12 @@ async function populateSideMenu() {
         (saved || []).forEach(item => {
           addShortlistItemToSideMenu(item.address, item.price, item.bedrooms, item.type, item.link);
         });
+        
+        // Update button state
+        const addShortBtnSideMenu = document.getElementById("addShortBtnSideMenu");
+        if (addShortBtnSideMenu) {
+          addShortBtnSideMenu.disabled = (saved || []).length >= maxShortlist;
+        }
       }
     } catch (err) {
       console.error('Failed to load shortlist for side menu:', err);
@@ -896,6 +949,12 @@ async function populateSideMenu() {
         (saved || []).forEach(req => {
           addRequirementToSideMenu(req.text, req.checked);
         });
+        
+        // Update button state
+        const addReqBtnSideMenu = document.getElementById("addReqBtnSideMenu");
+        if (addReqBtnSideMenu) {
+          addReqBtnSideMenu.disabled = (saved || []).length >= maxRequirements;
+        }
       }
     } catch (err) {
       console.error('Failed to load requirements for side menu:', err);
@@ -948,13 +1007,15 @@ function addShortlistItemToSideMenu(address = "", price = "", bedrooms = "", typ
   delBtn.style.padding = "8px 14px";
   delBtn.onclick = async () => {
     sideMenuShortlist.removeChild(itemDiv);
-    shortlistCount--;
-    document.getElementById("addShortBtn").disabled = false;
-    await saveShortlist();
-    // Also update main shortlist
+    await saveShortlist(); // This will collect all remaining items and save
+    // Refresh both main shortlist and side menu
     await loadShortlist();
-    // Refresh side menu
     await populateSideMenu();
+    // Refresh full screen map if visible
+    const overlay = document.getElementById('fullScreenMapOverlay');
+    if (overlay && overlay.style.display === 'flex') {
+      await loadFullScreenMap();
+    }
   };
 
   inputContainer.appendChild(addressInput);
@@ -999,12 +1060,9 @@ function addRequirementToSideMenu(text = "", checked = false) {
   delBtn.textContent = "❌";
   delBtn.onclick = async () => {
     sideMenuRequirements.removeChild(reqDiv);
-    count--;
-    document.getElementById("addBtn").disabled = false;
-    await saveRequirements();
-    // Also update main requirements
+    await saveRequirements(); // This will collect all remaining items and save
+    // Refresh both main requirements and side menu
     await loadRequirements();
-    // Refresh side menu
     await populateSideMenu();
   };
 
@@ -1013,6 +1071,41 @@ function addRequirementToSideMenu(text = "", checked = false) {
   reqDiv.appendChild(delBtn);
 
   sideMenuRequirements.appendChild(reqDiv);
+}
+
+// Functions to add items from side menu
+async function addShortlistItemFromSideMenu() {
+  if (shortlistCount >= maxShortlist) {
+    const btn = document.getElementById("addShortBtnSideMenu");
+    if (btn) btn.disabled = true;
+    return;
+  }
+
+  // Add to main shortlist first (which saves to DB)
+  addShortlistItem();
+  
+  // Refresh side menu to show the new item
+  await populateSideMenu();
+  
+  // Refresh full screen map if visible
+  const overlay = document.getElementById('fullScreenMapOverlay');
+  if (overlay && overlay.style.display === 'flex') {
+    await loadFullScreenMap();
+  }
+}
+
+async function addRequirementFromSideMenu() {
+  if (count >= maxRequirements) {
+    const btn = document.getElementById("addReqBtnSideMenu");
+    if (btn) btn.disabled = true;
+    return;
+  }
+
+  // Add to main requirements first (which saves to DB)
+  addRequirement();
+  
+  // Refresh side menu to show the new item
+  await populateSideMenu();
 }
 
 function toggleSideMenu() {

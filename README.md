@@ -10,6 +10,7 @@ A web application designed to simplify the process of finding and tracking prope
 ![alt text](image-3.png)
 
 ### Core Features (Completed)
+
 - **Property Search** — Search Rightmove listings by URL and view result counts
 - **User Authentication** — Register and login with secure password hashing
 - **Search History** — Track your searches over time in a persistent history
@@ -19,7 +20,7 @@ A web application designed to simplify the process of finding and tracking prope
 - **Dark/Light Mode** — Toggle between dark and light themes for comfortable browsing
 - **Responsive Design** — Works seamlessly on desktop, tablet, and mobile devices
 
-### Technical Features
+### Technical FeaStures
 - Secure JWT-based authentication
 - SQLite database for user persistence
 - CORS-enabled API backend
@@ -175,6 +176,7 @@ GROQ_API_KEY        # API key from Groq for AI chatbot
 - Mobile app version
 - Saved search alerts
 - Data for Crime Rates/Good Schools/Noise Levels
+- Make a AI real voice agent feature
 
 ## License
 
