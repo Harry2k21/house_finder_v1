@@ -177,7 +177,7 @@ GROQ_API_KEY        # API key from Groq for AI chatbot
 - Saved search alerts
 - Data for Crime Rates/Good Schools/Noise Levels
 - Make a AI real voice agent feature
-- Add Bubble Tea Shops/Airports/Schools as landmarks
+- Add Bubble Tea Shops/Airports/Schools as landmarks/other
 
 ## License
 
