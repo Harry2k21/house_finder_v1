@@ -175,7 +175,7 @@ GROQ_API_KEY        # API key from Groq for AI chatbot
 - Integration with other property sites
 - Mobile app version
 - Saved search alerts
-- Data for Crime Rates/Good Schools/Noise Levels
+- Data for Crime Rates/Good Schools/Noise Levels/Types of Crime
 - Improve UI/ Fix random caching/Make it user centric
 - Make a AI real voice agent feature
 - Add Bubble Tea Shops/Airports/Schools as landmarks/other
