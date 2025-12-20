@@ -179,6 +179,7 @@ GROQ_API_KEY        # API key from Groq for AI chatbot
 - Improve UI/ Fix random caching/Make it user centric
 - Make a AI real voice agent feature
 - Add Bubble Tea Shops/Airports/Schools as landmarks/other
+- Realese on App Store
 
 ## License
 
