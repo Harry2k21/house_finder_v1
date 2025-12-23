@@ -173,7 +173,7 @@ GROQ_API_KEY        # API key from Groq for AI chatbot
 - Email notifications for price drops
 - Advanced filtering by location, price, bedrooms
 - Integration with other property sites
-- Mobile app version
+- Mobile app version/New UI/
 - Saved search alerts/alerts for price changes
 - Data for Crime Rates/Good Schools/Noise Levels/Types of Crime
 - Improve UI/ Fix random caching/Make it user centric
