@@ -170,7 +170,7 @@ GROQ_API_KEY        # API key from Groq for AI chatbot
 ## Future Improvements
 
 - Property price tracking over time/Historical Data
-- Email notifications for price drops
+- Email notifications for price drops/
 - Advanced filtering by location, price, bedrooms
 - Integration with other property sites/Zoopla-On the Market
 - Mobile app version/New UI/New Menu
