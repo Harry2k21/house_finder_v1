@@ -176,7 +176,7 @@ GROQ_API_KEY        # API key from Groq for AI chatbot
 - Mobile app version/New UI/New Menu for Mobile Version/
 - Saved search alerts/alerts for price changes/historical changes
 - Data for Crime Rates/Good Schools/Noise Levels/Types of Crime/
-- Improve UI/ Fix random caching/Make it user centric
+- Improve UI/ Fix random caching/Make it user centric/
 - Make a AI real voice agent feature/AI agent improvement/Other Improvements
 - Add Bubble Tea Shops/Airports/Schools as landmarks/other
 - Realese on App Store/Apple/Android/ Others/
