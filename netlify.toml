@@ -1,8 +1,23 @@
 [build]
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF"
-
-[build.processing]
-  skip_processing = false
+  # Publish directory - where static files are served from
+  publish = "public"
+  # Functions directory - where serverless functions are located
+  functions = "netlify/functions"
 
 [build.environment]
   PYTHON_VERSION = "3.9"
+
+# Redirect all requests to index.html for client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Headers for all responses
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

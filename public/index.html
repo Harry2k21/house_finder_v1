@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Rightmove Scraper</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="icon" type="image/png" href="logo.png?v=1">
+  <link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+  <!-- Auth Forms -->
+  <div id="authContainer" class="container">
+    <div id="message"></div>
+
+    <!-- Login Form -->
+    <div id="loginForm">
+      <h1>Login</h1>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="loginUsername" placeholder="Enter your username">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="loginPassword" placeholder="Enter your password">
+      </div>
+      <button onclick="handleLogin()">Login</button>
+      <div class="toggle-form">
+        Don't have an account? <a onclick="toggleForms()">Register</a>
+      </div>
+    </div>
+
+    <!-- Register Form (Hidden by default) -->
+    <div id="registerForm" class="hidden">
+      <h1>Register</h1>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="registerUsername" placeholder="Choose a username">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="registerEmail" placeholder="Enter your email">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="registerPassword" placeholder="Create a password (min 6 chars)">
+      </div>
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input type="password" id="confirmPassword" placeholder="Confirm your password">
+      </div>
+      <button onclick="handleRegister()">Register</button>
+      <div class="toggle-form">
+        Already have an account? <a onclick="toggleForms()">Login</a>
+      </div>
+    </div>
+  </div>
+  
+
+  <!-- Main App (Hidden by default) -->
+  <div id="app" style="display: none;">
+
+
+     <!-- Navigation Bar -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <h1>Rightmove Results Scraper</h1>
+      </div>
+      <div class="navbar-links">
+        <a href="#scrape-1" class="nav-link">Scrape</a>
+        <a href="#requirements-1" class="nav-link">Requirements</a>
+        <a href="#shortlist-1" class="nav-link">Shortlist</a>
+        <a href="#map-1" class="nav-link">Map</a>
+        <a href="#expert-1" class="nav-link">Expert</a>
+      </div>
+      <div class="navbar-menu">
+        <span id="userDisplay"></span>
+        <button id="themeToggle" onclick="toggleTheme()">
+          <span class="theme-icon">🌙</span>
+        </button>
+        <button onclick="handleLogout()" class="logout-btn">Logout</button>
+      </div>
+    </nav>
+
+    <section id="scrape-1">
+      <input id="urlInput" type="url" placeholder="Paste Rightmove search URL here">
+      <button onclick="getResults()">Get Results</button>
+      <div id="output"></div>
+      <div id="history"></div>
+    </section>
+<!-- Recruitments Section -->
+    <section id="requirements-1">
+      <h2>My Requirements</h2>
+      <div id="list"></div>
+      <button id="addBtn">Add a Requirement</button>
+    </section>
+<!-- Short List Section -->
+    <section id="shortlist-1">
+      <h2>Shortlist</h2>
+      <div id="shortlist"></div>
+      <button id="addShortBtn">Add to Shortlist</button>
+    </section>
+
+    <!-- -- Map Section -->
+    <section id="map-1">
+      <h2 id="mapTitle">Shortlist Map View</h2>
+      <div id="mapLoadingMessage" style="text-align: center; padding: 20px; color: var(--text-color);">
+        Click "View Map" to see your shortlisted properties on the map
+      </div>
+      <button id="viewMapBtn" onclick="toggleMapView()">View Map</button>
+      
+      <div id="mapContainer" style="display: none;">
+        <div id="mapStatus" style="padding: 12px; background: rgba(37, 99, 235, 0.1); border-radius: 8px; margin-bottom: 15px; text-align: center; font-size: 14px;">
+          <span id="mapStatusText"></span>
+        </div>
+        <button id="expandMapBtn" onclick="toggleMapExpand()" style="margin-bottom: 10px; padding: 8px 16px; background: #134074; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+          <span id="expandIcon">⛶</span> Expand Map
+        </button>
+        <div id="map" style="height: 500px; width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid var(--border-color);"></div>
+      </div>
+    </section>
+
+    <!-- Full Screen Map Overlay with Side Menu -->
+    <div id="fullScreenMapOverlay" style="display: none;">
+      <div id="fullScreenMapContainer">
+        <div id="fullScreenMap" style="height: 100vh; width: 100vw;"></div>
+      </div>
+      
+      <!-- Side Menu -->
+      <div id="sideMenu" class="side-menu">
+        <div class="side-menu-header">
+          <h3>Menu</h3>
+          <button id="toggleSideMenuBtn" onclick="toggleSideMenu()" class="toggle-menu-btn">☰</button>
+        </div>
+        <div class="side-menu-content">
+          <div class="side-menu-section">
+            <h4 onclick="toggleSideMenuSection('shortlist-section')" class="side-menu-section-title">
+              📋 Shortlist <span class="toggle-icon">▼</span>
+            </h4>
+            <div id="shortlist-section" class="side-menu-section-content">
+              <div id="sideMenuShortlist"></div>
+            </div>
+          </div>
+          <div class="side-menu-section">
+            <h4 onclick="toggleSideMenuSection('requirements-section')" class="side-menu-section-title">
+              ✅ Requirements <span class="toggle-icon">▼</span>
+            </h4>
+            <div id="requirements-section" class="side-menu-section-content">
+              <div id="sideMenuRequirements"></div>
+            </div>
+          </div>
+          <div class="side-menu-section">
+            <h4 onclick="toggleSideMenuSection('map-controls-section')" class="side-menu-section-title">
+              🗺️ Map Controls <span class="toggle-icon">▼</span>
+            </h4>
+            <div id="map-controls-section" class="side-menu-section-content">
+              <button onclick="loadMap()" class="side-menu-btn">Refresh Map</button>
+              <button onclick="fitMapToMarkers()" class="side-menu-btn">Fit to Markers</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Close Button -->
+      <button id="closeFullScreenBtn" onclick="toggleMapExpand()" class="close-fullscreen-btn">✕</button>
+    </div>
+<!-- Ask an Expert Section -->
+    <section id="expert-1">
+      <h2>Ask an Expert</h2>
+      <div id="askExpertContainer">
+        <input id="question" placeholder="Ask your question...">
+        <button onclick="askExpert()">Ask Expert</button>
+      </div>
+      <p id="answer"></p>
+    </section>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
